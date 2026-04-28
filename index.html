@@ -395,6 +395,8 @@
         });
 
         socket.on('load_history', (rows) => {
+            const container = document.getElementById('messages');
+            container.innerHTML = ''; // 🔥 importante
             rows.forEach(row => addMessageToUI(row));
         });
 
