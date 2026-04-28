@@ -1,3 +1,7 @@
+process.on("uncaughtException", (err) => {
+  console.error("ERRO FATAL:", err);
+});
+
 const multer = require("multer");
 const express = require("express");
 const http = require("http");
@@ -12,13 +16,15 @@ const io = new Server(server);
 
 const fs = require("fs");
 
-if (!fs.existsSync("uploads")) {
-  fs.mkdirSync("uploads");
+const uploadPath = path.join(__dirname, "uploads");
+
+if (!fs.existsSync(uploadPath)) {
+  fs.mkdirSync(uploadPath, { recursive: true });
 }
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "uploads/");
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     const uniqueName = Date.now() + "-" + file.originalname;
@@ -29,12 +35,16 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 app.post("/upload", upload.single("image"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "Nenhum arquivo enviado" });
+  }
+
   const imageUrl = `/uploads/${req.file.filename}`;
   res.json({ url: imageUrl });
 });
 
 // Banco de Dados
-const db = new sqlite3.Database("./chat.db");
+const db = new sqlite3.Database(path.join(__dirname, "chat.db"));
 
 db.serialize(() => {
   // Tabela de Usuários (ID, Nome Único, Senha Criptografada)
