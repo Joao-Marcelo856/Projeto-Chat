@@ -79,8 +79,8 @@ app.use(express.static(__dirname));
 io.on("connection", (socket) => {
   socket.on("typing", (data) => {
     socket.to(data.room).emit("typing", data.user);
-    console.log("Conectado:", socket.id);
   });
+  console.log("Conectado:", socket.id);
 
   // LOGICA DE REGISTRO
   socket.on("register", async (data) => {
@@ -175,10 +175,10 @@ io.on("connection", (socket) => {
       }
     });
   });
+});
 
-  const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-  server.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-  });
+server.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
