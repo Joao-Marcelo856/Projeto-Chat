@@ -131,32 +131,33 @@ io.on("connection", (socket) => {
   });
 
   socket.on("chat message", (data) => {
-  db.run(
-    "INSERT INTO messages (room, user, text, image_url, avatar, reply_to_id) VALUES (?, ?, ?, ?, ?, ?)",
-    [
-      data.room,
-      data.user,
-      data.text,
-      data.image_url || null,
-      data.avatar || "/uploads/default-avatar.png",
-      data.replyToId || null,
-    ],
-    function (err) {
-      if (err) {
-        console.error("Erro ao salvar mensagem:", err);
-        return;
-      }
+    db.run(
+      "INSERT INTO messages (room, user, text, image_url, avatar, reply_to_id) VALUES (?, ?, ?, ?, ?, ?)",
+      [
+        data.room,
+        data.user,
+        data.text,
+        data.image_url || null,
+        data.avatar || "/uploads/default-avatar.png",
+        data.replyToId || null,
+      ],
+      function (err) {
+        if (err) {
+          console.error("Erro ao salvar mensagem:", err);
+          return;
+        }
 
-      io.to(data.room).emit("chat message", {
-        id: this.lastID,
-        ...data,
-      });
-    }
-  );
+        io.to(data.room).emit("chat message", {
+          id: this.lastID,
+          ...data,
+        });
+      },
+    );
+  });
 });
 
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
-})});
+});
