@@ -359,6 +359,7 @@
 
             socket.emit('chat message', {
                 user: currentUser,
+                avatar: avatarUrl,
                 text: input.value,
                 room: currentRoom,
                 replyToId: replyId
@@ -370,31 +371,38 @@
         function uploadImage(el) {
             const file = el.files[0];
             if (!file) return;
-            const reader = new FileReader();
-            reader.onloadend = function () {
-                socket.emit('chat message', {
-                    user: currentUser,
-                    text: '',
-                    image_url: reader.result,
-                    room: currentRoom
+            const formData = new FormData();
+            formData.append("image", file);
+
+            fetch("/upload", {
+                method: "POST",
+                body: formData
+            })
+                .then(res => res.json())
+                .then(data => {
+                    socket.emit("chat message", {
+                        user: currentUser,
+                        avatar: avatarUrl,
+                        text: "",
+                        image_url: data.url,
+                        room: currentRoom
+                    });
                 });
-            }
-            reader.readAsDataURL(file);
         }
 
         socket.on('chat message', (data) => {
-            const messagesContainer = document.getElementById('messages');
-            const div = document.createElement('div');
-            div.className = 'message';
-            div.id = `msg-${data.id}`;
+            renderMsg(data);
 
             div.innerHTML = `
-        <img src="${data.avatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
-        <div class="message-content">
-            <span class="message-author">${data.user}</span>
-            <span class="message-text">${data.text}</span>
+    <img src="${data.avatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
+    <div class="message-content">
+        <div class="actions-menu">
+            ${data.user === currentUser ? `<button class="btn-action btn-delete" onclick="socket.emit('delete message', ${data.id})">Apagar</button>` : ''}
         </div>
-    `;
+        <span class="message-author">${data.user}</span>
+        <span class="message-text">${data.text}</span>
+    </div>
+`;
             messagesContainer.appendChild(div);
         });
 

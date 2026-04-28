@@ -1,3 +1,4 @@
+const multer = require("multer");
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -8,6 +9,29 @@ const bcrypt = require("bcryptjs");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
+const fs = require("fs");
+
+if (!fs.existsSync("uploads")) {
+  fs.mkdirSync("uploads");
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/");
+  },
+  filename: function (req, file, cb) {
+    const uniqueName = Date.now() + "-" + file.originalname;
+    cb(null, uniqueName);
+  },
+});
+
+const upload = multer({ storage });
+
+app.post("/upload", upload.single("image"), (req, res) => {
+  const imageUrl = `/uploads/${req.file.filename}`;
+  res.json({ url: imageUrl });
+});
 
 // Banco de Dados
 const db = new sqlite3.Database("./chat.db");
@@ -29,6 +53,16 @@ db.serialize(() => {
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
 });
+
+db.run("ALTER TABLE messages ADD COLUMN avatar TEXT", (err) => {
+  if (err) {
+    console.log("Coluna avatar já existe 👍");
+  } else {
+    console.log("Coluna avatar criada 🚀");
+  }
+});
+
+app.use("/uploads", express.static("uploads"));
 
 app.use(express.static(__dirname));
 
@@ -82,8 +116,15 @@ io.on("connection", (socket) => {
   // ENVIO DE MENSAGEM
   socket.on("chat message", (data) => {
     db.run(
-      "INSERT INTO messages (room, user, text, image_url, reply_to_id) VALUES (?, ?, ?, ?, ?)",
-      [data.room, data.user, data.text, data.image_url, data.replyToId],
+      "INSERT INTO messages (room, user, text, image_url, reply_to_id, avatar) VALUES (?, ?, ?, ?, ?, ?)",
+      [
+        data.room,
+        data.user,
+        data.text,
+        data.image_url,
+        data.replyToId,
+        data.avatar,
+      ],
       function (err) {
         io.to(data.room).emit("chat message", { id: this.lastID, ...data });
       },
@@ -107,8 +148,4 @@ const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
-});
-
-io.on("connection", (socket) => {
-  console.log("Conectado:", socket.id);
 });
