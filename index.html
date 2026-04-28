@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Chat Clone</title>
+    <title>Chat Clone - Pro</title>
     <style>
         :root {
             --bg-dark: #202225;
@@ -18,91 +18,45 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         body {
             background: var(--bg-dark);
             color: var(--text-main);
             height: 100vh;
+            display: flex;
             overflow: hidden;
         }
 
-        /* MODAL DE LOGIN */
-        #auth-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-        }
-
-        .auth-box {
-            background: var(--bg-main);
-            padding: 30px;
-            border-radius: 8px;
-            width: 400px;
-            text-align: center;
-        }
-
-        .auth-box input {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            background: var(--bg-dark);
-            border: none;
-            color: white;
-            border-radius: 4px;
-        }
-
-        .auth-box button {
-            background: var(--blurple);
-            color: white;
-            border: none;
-            padding: 12px;
-            width: 100%;
-            cursor: pointer;
-            border-radius: 4px;
-            font-weight: bold;
-        }
-
-        .auth-toggle {
-            margin-top: 15px;
-            font-size: 0.9em;
-            cursor: pointer;
-            color: #00aff4;
-        }
-
-        /* LAYOUT */
-        .app-container {
-            display: flex;
-            height: 100vh;
-        }
-
-        .channels {
+        /* BARRA LATERAL ESQUERDA (CANAIS) */
+        .sidebar {
             width: 240px;
             background: #2f3136;
-            padding: 20px 10px;
             display: flex;
             flex-direction: column;
         }
 
+        .sidebar-header {
+            padding: 15px;
+            font-weight: bold;
+            border-bottom: 1px solid #202225;
+        }
+
         .channel-btn {
             padding: 10px;
+            margin: 2px 8px;
             cursor: pointer;
             border-radius: 4px;
-            margin-bottom: 5px;
-            color: #8e9297;
         }
 
         .channel-btn:hover,
         .active-room {
-            background: #393c43;
-            color: white;
+            background: #393d43;
+            color: #fff;
         }
 
+        /* ÁREA PRINCIPAL DO CHAT */
         .chat-area {
             flex: 1;
             display: flex;
@@ -116,444 +70,334 @@
             padding: 20px;
         }
 
-        /* MENSAGENS */
         .message {
-            position: relative;
             display: flex;
             gap: 10px;
+            margin-bottom: 15px;
+            position: relative;
         }
 
-        .message:hover {
-            background: #32353b;
+        .msg-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #eee;
         }
 
-        .message-author {
-            font-weight: bold;
-            color: white;
-        }
-
-        .reply-indicator {
-            font-size: 0.8em;
-            color: #b9bbbe;
-            margin-bottom: 4px;
-            display: block;
-        }
-
-        .chat-img {
-            max-width: 300px;
-            border-radius: 8px;
-            display: block;
-            margin-top: 8px;
-            border: 1px solid #444;
-        }
-
-        .actions-menu {
-            right: 10px;
-            top: 5px;
-            display: none;
-            background: var(--bg-dark);
-            border-radius: 4px;
-            border: 1px solid #444;
-        }
-
-        .message:hover .actions-menu {
-            display: flex;
-        }
-
-        .btn-edit:hover {
-            background: #4f545c;
-        }
-
-        .btn-action {
-            padding: 5px 10px;
-            font-size: 0.75em;
-            cursor: pointer;
-            border: none;
-            color: white;
-            background: none;
-        }
-
-        .btn-reply:hover {
-            background: var(--blurple);
-        }
-
-        .btn-delete:hover {
-            background: var(--danger);
-        }
-
-        /* BARRA DE INPUT */
-        .input-wrapper {
-            padding: 20px;
-            background: var(--bg-main);
-        }
-
-        .input-box {
-            background: var(--bg-input);
-            display: flex;
-            padding: 10px;
-            border-radius: 8px;
-            align-items: center;
-        }
-
-        #input {
-            flex: 1;
-            background: none;
-            border: none;
-            color: white;
-            outline: none;
-            padding: 5px;
-            font-size: 1em;
-        }
-
-        .btn-img {
-            padding: 5px 10px;
-            cursor: pointer;
-            font-size: 1.2em;
-            filter: grayscale(1);
-            transition: 0.2s;
-        }
-
-        .btn-img:hover {
-            filter: grayscale(0);
-            transform: scale(1.1);
-        }
-
-        .user-footer {
-            background: #292b2f;
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: auto;
-        }
-
-        .btn-logout {
-            font-size: 0.7em;
-            background: #4f545c;
-            padding: 5px 8px;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-
-        .btn-logout:hover {
-            background: var(--danger);
-        }
-
-        .message {
-            display: flex;
-            align-items: flex-start;
-            /* Alinha a imagem com o topo do texto */
-            padding: 10px;
-        }
-
-        .message-content {
+        .msg-content {
             display: flex;
             flex-direction: column;
         }
 
-        .message-text {
-            color: #dcddde;
+        .msg-author {
+            font-weight: bold;
+            color: #fff;
+            font-size: 0.9em;
         }
 
-        .avatar {
-            width: 40px;
-            height: 40px;
+        /* BARRA LATERAL DIREITA (USUÁRIOS) */
+        .users-sidebar {
+            width: 200px;
+            background: #2f3136;
+            padding: 10px;
+            border-left: 1px solid #202225;
+        }
+
+        .user-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .user-item:hover {
+            background: #393d43;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: #43b581;
             border-radius: 50%;
+        }
+
+        /* INPUT E CONTROLES */
+        .input-container {
+            padding: 20px;
+            background: var(--bg-main);
+        }
+
+        #input {
+            width: 100%;
+            background: var(--bg-input);
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            color: #fff;
+        }
+
+        /* MODAL E CONFIGURAÇÕES */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-box {
+            background: var(--bg-main);
+            padding: 30px;
+            border-radius: 8px;
+            width: 400px;
+            text-align: center;
+        }
+
+        .avatar-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 10px auto;
+            display: block;
+            border: 3px solid var(--blurple);
             object-fit: cover;
+        }
+
+        .settings-footer {
+            background: #292b2f;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .gear-icon {
+            cursor: pointer;
+            font-size: 20px;
+            transition: transform 0.3s;
+        }
+
+        .gear-icon:hover {
+            transform: rotate(90deg);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .btn-primary {
+            background: var(--blurple);
+            color: #fff;
         }
     </style>
 </head>
 
 <body>
 
-    <div id="auth-overlay">
-        <div class="auth-box">
-            <h2 id="auth-title">Amigos Chat</h2>
-            <input type="text" id="auth-user" placeholder="Usuário">
-            <input type="password" id="auth-pass" placeholder="Senha">
-            <button id="btn-auth-main" onclick="handleAuth()">Entrar</button>
-            <p class="auth-toggle" onclick="toggleAuthMode()" id="auth-mode-text">Novo por aqui? Registre-se</p>
+    <div id="auth-overlay" class="modal" style="display: flex;">
+        <div class="modal-box">
+            <h2>Bem-vindo de volta!</h2>
+            <input type="text" id="auth-user" placeholder="Usuário" style="width:100%; margin:10px 0; padding:10px;">
+            <input type="password" id="auth-pass" placeholder="Senha" style="width:100%; margin:10px 0; padding:10px;">
+            <button class="btn btn-primary" onclick="handleAuth('login')">Entrar</button>
+            <button class="btn" onclick="handleAuth('register')" style="background:none; color:var(--text-main)">Criar
+                conta</button>
         </div>
     </div>
 
-    <div class="app-container">
-        <div class="channels">
-            <h3 style="margin-bottom:15px; font-size: 1.1em;">Canais</h3>
-            <div class="channel-btn active-room" onclick="changeRoom(event, 'geral')"># geral</div>
-            <div class="channel-btn" onclick="changeRoom(event, 'jogos')"># jogos</div>
-
-            <div class="user-footer">
-                <span id="display-username" style="font-weight: bold; font-size: 0.9em;"></span>
-                <span class="btn-logout" onclick="logout()">Sair</span>
-            </div>
+    <div id="settings-modal" class="modal">
+        <div class="modal-box">
+            <h3>Configurações de Perfil</h3>
+            <img id="preview-img" class="avatar-preview" src="/uploads/default-avatar.png">
+            <input type="file" id="file-avatar" accept="image/*" onchange="previewFile()" style="margin: 10px 0;">
+            <input type="text" id="new-name" placeholder="Mudar nome de usuário"
+                style="width:100%; padding:10px; margin-bottom:10px;">
+            <button class="btn btn-primary" onclick="saveProfile()">Salvar</button>
+            <button class="btn" onclick="toggleModal('settings-modal', false)">Cancelar</button>
         </div>
+    </div>
 
-        <main class="chat-area">
-            <div id="messages"></div>
-            <div id="typing-indicator" style="padding: 0 20px; font-size: 0.8em; color: #aaa;"></div>
+    <div class="sidebar">
+        <div class="sidebar-header">Canais</div>
+        <div class="channel-btn active-room" onclick="changeRoom(event, 'geral')"># geral</div>
+        <div class="channel-btn" onclick="changeRoom(event, 'ajuda')"># ajuda</div>
 
-            <div class="input-wrapper">
-                <div class="input-box">
-                    <label class="btn-img" title="Enviar Imagem">
-                        📷<input type="file" id="imgInput" hidden onchange="uploadImage(this)">
-                    </label>
-                    <input type="text" id="input" placeholder="Conversar em #geral"
-                        onkeypress="if(event.key==='Enter') send()">
-                    <button onclick="send()"
-                        style="background:none; border:none; padding:10px; cursor:pointer; font-size: 1.2em;">➡️</button>
-                </div>
+        <div style="margin-top: auto;" class="settings-footer">
+            <div id="user-info" style="display:flex; align-items:center; gap:8px;">
+                <img id="my-avatar" src="/uploads/default-avatar.png"
+                    style="width:32px; height:32px; border-radius:50%;">
+                <span id="my-name">Usuário</span>
             </div>
-        </main>
+            <span class="gear-icon" onclick="toggleModal('settings-modal', true)">⚙️</span>
+        </div>
+    </div>
+
+    <div class="chat-area">
+        <div id="messages"></div>
+        <div class="input-container">
+            <input type="text" id="input" placeholder="Conversar...">
+        </div>
+    </div>
+
+    <div class="users-sidebar">
+        <div style="font-weight:bold; margin-bottom:10px; font-size:0.8em; color:#8e9297;">USUÁRIOS — <span
+                id="user-count">0</span></div>
+        <div id="user-list"></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let currentUser = localStorage.getItem('chat_user');
+        let currentUser = null;
+        let currentAvatar = '/uploads/default-avatar.png';
         let currentRoom = 'geral';
-        let isRegister = false;
-        let replyId = null;
-        let username = localStorage.getItem('chat_user');
-        let avatarUrl = localStorage.getItem('chat_avatar') || 'https://via.placeholder.com/40';
 
-        if (!username) {
-            username = prompt("Como você quer ser chamado?");
-            avatarUrl = prompt("Cole o link da sua foto de perfil (URL):") || 'https://via.placeholder.com/40';
-            localStorage.setItem('chat_user', username);
-            localStorage.setItem('chat_avatar', avatarUrl);
+        // --- AUTH ---
+        function handleAuth(type) {
+            const username = document.getElementById('auth-user').value;
+            const password = document.getElementById('auth-pass').value;
+            socket.emit(type, { username, password });
         }
 
-        if (currentUser) {
+        socket.on('auth_success', (data) => {
+            currentUser = data.username;
+            currentAvatar = data.avatar;
             document.getElementById('auth-overlay').style.display = 'none';
-            document.getElementById('display-username').innerText = currentUser;
-            socket.emit('switch_room', currentRoom);
-        }
-
-        function toggleAuthMode() {
-            isRegister = !isRegister;
-            document.getElementById('auth-title').innerText = isRegister ? "Criar Conta" : "Login";
-            document.getElementById('btn-auth-main').innerText = isRegister ? "Registrar" : "Entrar";
-            document.getElementById('auth-mode-text').innerText = isRegister ? "Já tem conta? Faça Login" : "Novo por aqui? Registre-se";
-        }
-
-        function handleAuth() {
-            const u = document.getElementById('auth-user').value;
-            const p = document.getElementById('auth-pass').value;
-            if (!u || !p) return alert("Preencha todos os campos!");
-            socket.emit(isRegister ? 'register' : 'login', { username: u, password: p });
-        }
-
-        socket.on('auth_success', (user) => {
-            localStorage.setItem('chat_user', user);
-            location.reload();
+            document.getElementById('my-name').innerText = currentUser;
+            document.getElementById('my-avatar').src = currentAvatar;
+            socket.emit('switch_room', 'geral');
+            socket.emit('get_users');
         });
 
-        socket.on("message edited", (data) => {
-            const msgDiv = document.getElementById(`msg-${data.id}`);
-            if (!msgDiv) return;
+        // --- CHAT LOGIC ---
+        function changeRoom(e, room) {
+            currentRoom = room;
+            document.getElementById('messages').innerHTML = '';
+            socket.emit('switch_room', room);
+            document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active-room'));
+            if (e) e.target.classList.add('active-room');
+        }
 
-            const textEl = msgDiv.querySelector('.message-text');
-            textEl.innerText = data.newText + " (editado)";
-        });
+        function openDM(targetUser) {
+            // Lógica de sala privada: dm_ana_bob (sempre em ordem alfabética)
+            const room = [currentUser, targetUser].sort().join('_pm_');
+            changeRoom(null, room);
+        }
 
-        socket.on('auth_error', (msg) => alert(msg));
-
-        function sendMessage(event) {
-            event.preventDefault();
-            const input = document.getElementById('input');
-
-            if (input.value.trim() !== '') {
+        document.getElementById('input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && e.target.value.trim()) {
                 socket.emit('chat message', {
-                    user: username,
-                    avatar: avatarUrl, // <--- Enviando a foto junto
-                    text: input.value,
-                    room: currentRoom
+                    room: currentRoom,
+                    user: currentUser,
+                    avatar: currentAvatar,
+                    text: e.target.value
                 });
-                input.value = '';
+                e.target.value = '';
+            }
+        });
+
+        socket.on('chat message', (data) => {
+            const container = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.innerHTML = `
+                <img src="${data.avatar}" class="msg-avatar">
+                <div class="msg-content">
+                    <span class="msg-author">${data.user}</span>
+                    <span class="msg-text">${data.text}</span>
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        });
+
+        socket.on('load_history', (rows) => {
+            rows.forEach(row => {
+                const container = document.getElementById('messages');
+                const div = document.createElement('div');
+                div.className = 'message';
+                div.innerHTML = `
+                    <img src="${row.avatar || '/uploads/default-avatar.png'}" class="msg-avatar">
+                    <div class="msg-content">
+                        <span class="msg-author">${row.user}</span>
+                        <span class="msg-text">${row.text}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        });
+
+        // --- USUÁRIOS E PERFIL ---
+        socket.on('user_list', (users) => {
+            const list = document.getElementById('user-list');
+            list.innerHTML = '';
+            document.getElementById('user-count').innerText = users.length;
+            users.forEach(u => {
+                if (u.username === currentUser) return;
+                const div = document.createElement('div');
+                div.className = 'user-item';
+                div.onclick = () => openDM(u.username);
+                div.innerHTML = `
+                    <img src="${u.avatar}" style="width:32px; height:32px; border-radius:50%;">
+                    <span>${u.username}</span>
+                    <div class="status-dot"></div>
+                `;
+                list.appendChild(div);
+            });
+        });
+
+        socket.on('refresh_users', () => socket.emit('get_users'));
+
+        function toggleModal(id, show) {
+            document.getElementById(id).style.display = show ? 'flex' : 'none';
+            if (show) {
+                document.getElementById('preview-img').src = currentAvatar;
+                document.getElementById('new-name').value = currentUser;
             }
         }
 
-        function send() {
-            const input = document.getElementById('input');
-            if (!input.value.trim()) return;
-
-            socket.emit('chat message', {
-                user: currentUser,
-                avatar: avatarUrl,
-                text: input.value,
-                room: currentRoom,
-                replyToId: replyId
-            });
-            input.value = '';
-            cancelReply();
+        function previewFile() {
+            const file = document.getElementById('file-avatar').files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => document.getElementById('preview-img').src = reader.result;
+            if (file) reader.readAsDataURL(file);
         }
 
-        function uploadImage(el) {
-            const file = el.files[0];
-            if (!file) return;
-            const formData = new FormData();
-            formData.append("image", file);
+        async function saveProfile() {
+            const fileInput = document.getElementById('file-avatar');
+            const newName = document.getElementById('new-name').value;
+            let finalAvatar = currentAvatar;
 
-            fetch("/upload", {
-                method: "POST",
-                body: formData
-            })
-                .then(res => res.json())
-                .then(data => {
-                    socket.emit("chat message", {
-                        user: currentUser,
-                        avatar: avatarUrl,
-                        text: "",
-                        image_url: data.url,
-                        room: currentRoom
-                    });
-                });
-        }
+            if (fileInput.files[0]) {
+                const formData = new FormData();
+                formData.append('image', fileInput.files[0]);
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                finalAvatar = data.url;
+            }
 
-        socket.on('chat message', (data) => {
-            renderMsg(data);
-        });
-
-        socket.on('load_history', (msgs) => {
-            document.getElementById('messages').innerHTML = '';
-            msgs.forEach(m => renderMsg(m));
-        });
-
-        let lastUser = null;
-
-        function renderMsg(data) {
-            const container = document.getElementById('messages');
-
-            const isSameUser = data.user === lastUser;
-
-            const div = document.createElement('div');
-            div.className = 'message';
-            div.id = `msg-${data.id}`;
-
-            const time = new Date(data.timestamp || Date.now()).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-
-            div.innerHTML = `
-        ${!isSameUser ? `<img src="${data.avatar || 'https://via.placeholder.com/40'}" class="avatar">` : `<div style="width:40px;"></div>`}
-        
-        <div class="message-content">
-            ${!isSameUser ? `
-                <div>
-                    <span class="message-author">${data.user}</span>
-                    <span style="font-size: 0.7em; color: #aaa; margin-left: 8px;">${time}</span>
-                </div>
-            ` : ''}
-
-            <span class="message-text">${data.text}</span>
-
-            ${(data.image_url) ? `<img src="${data.image_url}" class="chat-img">` : ''}
-
-            <div class="actions-menu">
-                ${data.user === currentUser ? ` <button class="btn-action btn-edit" onclick="startEdit(${data.id})">Editar</button> <button class="btn-action btn-delete" onclick="deleteMessage(${data.id})">Apagar</button>` : ''}
-            </div>
-        </div>
-    `;
-
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-
-            lastUser = data.user;
-        }
-
-        socket.on(`message deleted`, (id) => {
-            const msgElement = document.getElementById(`msg-${id}`);
-            if (msgElement) msgElement.remove();
-        });
-
-        socket.on("typing", (user) => {
-            const el = document.getElementById("typing-indicator");
-
-            el.innerText = `${user} está digitando...`;
-
-            clearTimeout(window.typingDisplayTimeout);
-            window.typingDisplayTimeout = setTimeout(() => {
-                el.innerText = "";
-            }, 2000);
-        });
-
-        function startEdit(id) {
-            const msgDiv = document.getElementById(`msg-${id}`);
-            const textEl = msgDiv.querySelector('.message-text');
-
-            const oldText = textEl.innerText;
-
-            textEl.innerHTML = `
-        <input type="text" id="edit-${id}" value="${oldText}" style="width: 100%; padding: 5px;">
-        <button onclick="saveEdit(${id})">Salvar</button>
-    `;
-        }
-
-        function saveEdit(id) {
-            const input = document.getElementById(`edit-${id}`);
-            const newText = input.value;
-
-            socket.emit("edit message", {
-                msgId: id,
-                newText,
-                user: currentUser
+            socket.emit('update_profile', {
+                oldName: currentUser,
+                newName: newName,
+                newAvatar: finalAvatar
             });
         }
 
-        function setReply(id, user) {
-            replyId = id;
-            document.getElementById('input').placeholder = `Respondendo a ${user}... (ESC para cancelar)`;
-            document.getElementById('input').focus();
-        }
-
-        function cancelReply() {
-            replyId = null;
-            document.getElementById('input').placeholder = `Conversar em #${currentRoom}`;
-        }
-
-        window.onkeydown = (e) => { if (e.key === 'Escape') cancelReply(); }
-
-        function changeRoom(event, r) {
-            const time = new Date().toLocaleTimeString();
-            lastUser = null;
-            currentRoom = r;
-
-            // 1. Limpa a tela antes de carregar o histórico
-            const messagesContainer = document.getElementById('messages');
-            messagesContainer.innerHTML = '';
-
-            // 2. Avisa o servidor para trocar de sala
-            socket.emit('switch_room', r);
-
-            // 3. Destaca o botão ativo (CSS)
-            document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active-room'));
-            event.target.classList.add('active-room');
-
-            cancelReply();
-        }
-
-        function logout() {
-            localStorage.removeItem('chat_user');
-            location.reload();
-        }
-
-        function deleteMessage(id) {
-            socket.emit('delete message', {
-                msgId: id,
-                user: currentUser
-            });
-        }
-
-        let typingTimeout;
-
-        document.getElementById("input").addEventListener("input", () => {
-            socket.emit("typing", {
-                user: currentUser,
-                room: currentRoom
-            });
-
-            clearTimeout(typingTimeout);
+        socket.on('profile_updated', (data) => {
+            currentUser = data.username;
+            currentAvatar = data.avatar;
+            document.getElementById('my-name').innerText = currentUser;
+            document.getElementById('my-avatar').src = currentAvatar;
+            toggleModal('settings-modal', false);
+            alert("Perfil atualizado!");
         });
     </script>
 </body>
