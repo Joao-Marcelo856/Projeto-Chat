@@ -3,7 +3,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
 const sqlite3 = require("sqlite3").verbose();
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 
 const app = express();
 const server = http.createServer(app);
@@ -101,11 +101,14 @@ io.on("connection", (socket) => {
       }
     });
   });
+});
 
-  // O Render vai preencher o process.env.PORT automaticamente
-  const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
-  server.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
-  });
+server.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
+
+io.on("connection", (socket) => {
+  console.log("Conectado:", socket.id);
 });
