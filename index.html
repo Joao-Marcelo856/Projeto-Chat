@@ -238,6 +238,18 @@
         .btn-logout:hover {
             background: var(--danger);
         }
+
+        .message {
+            display: flex;
+            align-items: flex-start;
+            /* Alinha a imagem com o topo do texto */
+            padding: 10px;
+        }
+
+        .message-content {
+            display: flex;
+            flex-direction: column;
+        }
     </style>
 </head>
 
@@ -289,6 +301,15 @@
         let currentRoom = 'geral';
         let isRegister = false;
         let replyId = null;
+        let username = localStorage.getItem('chat_user');
+        let avatarUrl = localStorage.getItem('chat_avatar') || 'https://via.placeholder.com/40';
+
+        if (!username) {
+            username = prompt("Como você quer ser chamado?");
+            avatarUrl = prompt("Cole o link da sua foto de perfil (URL):") || 'https://via.placeholder.com/40';
+            localStorage.setItem('chat_user', username);
+            localStorage.setItem('chat_avatar', avatarUrl);
+        }
 
         if (currentUser) {
             document.getElementById('auth-overlay').style.display = 'none';
@@ -316,6 +337,21 @@
         });
 
         socket.on('auth_error', (msg) => alert(msg));
+
+        function sendMessage(event) {
+            event.preventDefault();
+            const input = document.getElementById('input');
+
+            if (input.value.trim() !== '') {
+                socket.emit('chat message', {
+                    user: username,
+                    avatar: avatarUrl, // <--- Enviando a foto junto
+                    text: input.value,
+                    room: currentRoom
+                });
+                input.value = '';
+            }
+        }
 
         function send() {
             const input = document.getElementById('input');
@@ -346,7 +382,21 @@
             reader.readAsDataURL(file);
         }
 
-        socket.on('chat message', (data) => renderMsg(data));
+        socket.on('chat message', (data) => {
+            const messagesContainer = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.id = `msg-${data.id}`;
+
+            div.innerHTML = `
+        <img src="${data.avatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
+        <div class="message-content">
+            <span class="message-author">${data.user}</span>
+            <span class="message-text">${data.text}</span>
+        </div>
+    `;
+            messagesContainer.appendChild(div);
+        });
 
         socket.on('load_history', (msgs) => {
             document.getElementById('messages').innerHTML = '';
@@ -377,7 +427,10 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        socket.on('message deleted', (id) => document.getElementById(`msg-${id}`)?.remove());
+        socket.on('message deleted', (id) => {
+            const msgElement = document.getElementById(`msg-${id}`);
+            if (msgElement) msgElement.remove();
+        });
 
         function setReply(id, user) {
             replyId = id;
@@ -394,6 +447,7 @@
 
         function changeRoom(r) {
             currentRoom = r;
+            document.getElementById('messages').innerHTML = '';
             socket.emit('switch_room', r);
             document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active-room'));
             // Procura o botão clicado para marcar como ativo
