@@ -12,6 +12,7 @@
             --text-main: #dcddde;
             --blurple: #5865f2;
             --danger: #ed4245;
+            --text-muted: #b9bbbe;
         }
 
         * {
@@ -82,6 +83,7 @@
             height: 40px;
             border-radius: 50%;
             background: #eee;
+            object-fit: cover;
         }
 
         .msg-content {
@@ -136,13 +138,14 @@
             padding: 12px;
             border-radius: 8px;
             color: #fff;
+            outline: none;
         }
 
         /* MODAL E CONFIGURAÇÕES */
         .modal {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             display: none;
             align-items: center;
             justify-content: center;
@@ -151,10 +154,37 @@
 
         .modal-box {
             background: var(--bg-main);
-            padding: 30px;
+            padding: 32px;
             border-radius: 8px;
             width: 400px;
             text-align: center;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-box h2 {
+            margin-bottom: 8px;
+            color: #fff;
+        }
+
+        .modal-box p {
+            color: var(--text-muted);
+            font-size: 0.9em;
+            margin-bottom: 20px;
+        }
+
+        .auth-input {
+            width: 100%;
+            background: var(--bg-dark);
+            border: 1px solid #202225;
+            padding: 12px;
+            border-radius: 4px;
+            color: #fff;
+            margin-bottom: 15px;
+            outline: none;
+        }
+
+        .auth-input:focus {
+            border-color: var(--blurple);
         }
 
         .avatar-preview {
@@ -179,23 +209,43 @@
             cursor: pointer;
             font-size: 20px;
             transition: transform 0.3s;
+            opacity: 0.7;
         }
 
         .gear-icon:hover {
             transform: rotate(90deg);
+            opacity: 1;
         }
 
         .btn {
-            padding: 10px 20px;
+            padding: 12px 20px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            margin-top: 10px;
+            width: 100%;
+            font-weight: bold;
+            transition: background 0.2s;
         }
 
         .btn-primary {
             background: var(--blurple);
             color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #4752c4;
+        }
+
+        .toggle-link {
+            color: #00aff4;
+            cursor: pointer;
+            font-size: 0.85em;
+            margin-top: 15px;
+            display: inline-block;
+        }
+
+        .toggle-link:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -204,12 +254,17 @@
 
     <div id="auth-overlay" class="modal" style="display: flex;">
         <div class="modal-box">
-            <h2>Bem-vindo de volta!</h2>
-            <input type="text" id="auth-user" placeholder="Usuário" style="width:100%; margin:10px 0; padding:10px;">
-            <input type="password" id="auth-pass" placeholder="Senha" style="width:100%; margin:10px 0; padding:10px;">
-            <button class="btn btn-primary" onclick="handleAuth('login')">Entrar</button>
-            <button class="btn" onclick="handleAuth('register')" style="background:none; color:var(--text-main)">Criar
-                conta</button>
+            <h2 id="auth-title">Bem-vindo de volta!</h2>
+            <p id="auth-subtitle">Estamos muito animados em te ver novamente!</p>
+
+            <input type="text" id="auth-user" class="auth-input" placeholder="NOME DE USUÁRIO">
+            <input type="password" id="auth-pass" class="auth-input" placeholder="SENHA">
+
+            <button id="auth-submit-btn" class="btn btn-primary" onclick="handleAuth()">Entrar</button>
+
+            <div id="auth-toggle-text" class="toggle-link" onclick="toggleAuthMode()">
+                Precisando de uma conta? Registre-se
+            </div>
         </div>
     </div>
 
@@ -217,11 +272,12 @@
         <div class="modal-box">
             <h3>Configurações de Perfil</h3>
             <img id="preview-img" class="avatar-preview" src="/uploads/default-avatar.png">
-            <input type="file" id="file-avatar" accept="image/*" onchange="previewFile()" style="margin: 10px 0;">
-            <input type="text" id="new-name" placeholder="Mudar nome de usuário"
-                style="width:100%; padding:10px; margin-bottom:10px;">
+            <input type="file" id="file-avatar" accept="image/*" onchange="previewFile()"
+                style="margin: 10px 0; color: #fff; font-size: 0.8em;">
+            <input type="text" id="new-name" class="auth-input" placeholder="Mudar nome de usuário">
             <button class="btn btn-primary" onclick="saveProfile()">Salvar</button>
-            <button class="btn" onclick="toggleModal('settings-modal', false)">Cancelar</button>
+            <button class="btn" onclick="toggleModal('settings-modal', false)"
+                style="background:none; color: #fff; margin-top: 5px;">Cancelar</button>
         </div>
     </div>
 
@@ -233,8 +289,9 @@
         <div style="margin-top: auto;" class="settings-footer">
             <div id="user-info" style="display:flex; align-items:center; gap:8px;">
                 <img id="my-avatar" src="/uploads/default-avatar.png"
-                    style="width:32px; height:32px; border-radius:50%;">
-                <span id="my-name">Usuário</span>
+                    style="width:32px; height:32px; border-radius:50%; object-fit: cover;">
+                <span id="my-name"
+                    style="font-size: 0.9em; font-weight: bold; max-width: 100px; overflow: hidden; text-overflow: ellipsis;">Usuário</span>
             </div>
             <span class="gear-icon" onclick="toggleModal('settings-modal', true)">⚙️</span>
         </div>
@@ -248,8 +305,10 @@
     </div>
 
     <div class="users-sidebar">
-        <div style="font-weight:bold; margin-bottom:10px; font-size:0.8em; color:#8e9297;">USUÁRIOS — <span
-                id="user-count">0</span></div>
+        <div
+            style="font-weight:bold; margin-bottom:10px; font-size:0.75em; color:#8e9297; text-transform: uppercase; letter-spacing: 0.5px;">
+            Usuários — <span id="user-count">0</span>
+        </div>
         <div id="user-list"></div>
     </div>
 
@@ -259,23 +318,50 @@
         let currentUser = null;
         let currentAvatar = '/uploads/default-avatar.png';
         let currentRoom = 'geral';
+        let isLoginMode = true;
 
-        // --- AUTH ---
-        function handleAuth(type) {
+        // --- AUTH LOGIC ---
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            const title = document.getElementById('auth-title');
+            const subtitle = document.getElementById('auth-subtitle');
+            const btn = document.getElementById('auth-submit-btn');
+            const toggleText = document.getElementById('auth-toggle-text');
+
+            if (isLoginMode) {
+                title.innerText = "Bem-vindo de volta!";
+                subtitle.innerText = "Estamos muito animados em te ver novamente!";
+                btn.innerText = "Entrar";
+                toggleText.innerText = "Precisando de uma conta? Registre-se";
+            } else {
+                title.innerText = "Criar uma conta";
+                subtitle.innerText = "Junte-se à nossa comunidade hoje mesmo!";
+                btn.innerText = "Registrar";
+                toggleText.innerText = "Já tem uma conta? Clique aqui";
+            }
+        }
+
+        function handleAuth() {
             const username = document.getElementById('auth-user').value;
             const password = document.getElementById('auth-pass').value;
-            socket.emit(type, { username, password });
+
+            if (!username || !password) return alert("Preencha todos os campos!");
+
+            const eventType = isLoginMode ? 'login' : 'register';
+            socket.emit(eventType, { username, password });
         }
 
         socket.on('auth_success', (data) => {
             currentUser = data.username;
-            currentAvatar = data.avatar;
+            currentAvatar = data.avatar || '/uploads/default-avatar.png';
             document.getElementById('auth-overlay').style.display = 'none';
             document.getElementById('my-name').innerText = currentUser;
             document.getElementById('my-avatar').src = currentAvatar;
             socket.emit('switch_room', 'geral');
             socket.emit('get_users');
         });
+
+        socket.on('auth_error', (msg) => alert(msg));
 
         // --- CHAT LOGIC ---
         function changeRoom(e, room) {
@@ -287,7 +373,6 @@
         }
 
         function openDM(targetUser) {
-            // Lógica de sala privada: dm_ana_bob (sempre em ordem alfabética)
             const room = [currentUser, targetUser].sort().join('_pm_');
             changeRoom(null, room);
         }
@@ -305,11 +390,20 @@
         });
 
         socket.on('chat message', (data) => {
+            if (data.room !== currentRoom) return;
+            addMessageToUI(data);
+        });
+
+        socket.on('load_history', (rows) => {
+            rows.forEach(row => addMessageToUI(row));
+        });
+
+        function addMessageToUI(data) {
             const container = document.getElementById('messages');
             const div = document.createElement('div');
             div.className = 'message';
             div.innerHTML = `
-                <img src="${data.avatar}" class="msg-avatar">
+                <img src="${data.avatar || '/uploads/default-avatar.png'}" class="msg-avatar">
                 <div class="msg-content">
                     <span class="msg-author">${data.user}</span>
                     <span class="msg-text">${data.text}</span>
@@ -317,23 +411,7 @@
             `;
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
-        });
-
-        socket.on('load_history', (rows) => {
-            rows.forEach(row => {
-                const container = document.getElementById('messages');
-                const div = document.createElement('div');
-                div.className = 'message';
-                div.innerHTML = `
-                    <img src="${row.avatar || '/uploads/default-avatar.png'}" class="msg-avatar">
-                    <div class="msg-content">
-                        <span class="msg-author">${row.user}</span>
-                        <span class="msg-text">${row.text}</span>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-        });
+        }
 
         // --- USUÁRIOS E PERFIL ---
         socket.on('user_list', (users) => {
@@ -346,8 +424,8 @@
                 div.className = 'user-item';
                 div.onclick = () => openDM(u.username);
                 div.innerHTML = `
-                    <img src="${u.avatar}" style="width:32px; height:32px; border-radius:50%;">
-                    <span>${u.username}</span>
+                    <img src="${u.avatar || '/uploads/default-avatar.png'}" style="width:32px; height:32px; border-radius:50%; object-fit: cover;">
+                    <span style="font-size: 0.9em;">${u.username}</span>
                     <div class="status-dot"></div>
                 `;
                 list.appendChild(div);
@@ -358,7 +436,7 @@
 
         function toggleModal(id, show) {
             document.getElementById(id).style.display = show ? 'flex' : 'none';
-            if (show) {
+            if (show && id === 'settings-modal') {
                 document.getElementById('preview-img').src = currentAvatar;
                 document.getElementById('new-name').value = currentUser;
             }
@@ -397,7 +475,6 @@
             document.getElementById('my-name').innerText = currentUser;
             document.getElementById('my-avatar').src = currentAvatar;
             toggleModal('settings-modal', false);
-            alert("Perfil atualizado!");
         });
     </script>
 </body>

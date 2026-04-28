@@ -13,7 +13,7 @@ const io = new Server(server);
 
 // Pasta para uploads
 const uploadPath = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
+if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadPath),
@@ -24,7 +24,6 @@ const upload = multer({ storage });
 const db = new sqlite3.Database("./chat.db");
 
 db.serialize(() => {
-  // Tabela de Usuários com Avatar
   db.run(`CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         username TEXT UNIQUE, 
@@ -32,7 +31,6 @@ db.serialize(() => {
         avatar TEXT DEFAULT '/uploads/default-avatar.png'
     )`);
 
-  // Tabela de Mensagens
   db.run(`CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         room TEXT, 
@@ -48,61 +46,63 @@ db.serialize(() => {
 app.use(express.static(__dirname));
 app.use("/uploads", express.static("uploads"));
 
-// Endpoint para Upload de Imagem (Perfil ou Chat)
 app.post("/upload", upload.single("image"), (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Erro no upload" });
   res.json({ url: `/uploads/${req.file.filename}` });
 });
 
 io.on("connection", (socket) => {
-  // Registro com Avatar Padrão
+  // Registro
   socket.on("register", async (data) => {
-    const hash = await bcrypt.hash(data.password, 10);
-    db.run(
-      "INSERT INTO users (username, password) VALUES (?, ?)",
-      [data.username, hash],
-      function (err) {
-        if (err) return socket.emit("auth_error", "Usuário já existe");
-        socket.emit("auth_success", {
-          username: data.username,
-          avatar: "/uploads/default-avatar.png",
-        });
-      },
-    );
+    try {
+      const hash = await bcrypt.hash(data.password, 10);
+      db.run(
+        "INSERT INTO users (username, password) VALUES (?, ?)",
+        [data.username, hash],
+        function (err) {
+          if (err) return socket.emit("auth_error", "Este usuário já existe.");
+          socket.emit("auth_success", {
+            username: data.username,
+            avatar: "/uploads/default-avatar.png",
+          });
+          io.emit("refresh_users");
+        },
+      );
+    } catch (e) {
+      socket.emit("auth_error", "Erro no servidor.");
+    }
   });
 
+  // Login
   socket.on("login", (data) => {
     db.get(
       "SELECT * FROM users WHERE username = ?",
       [data.username],
       async (err, row) => {
-        if (!row) return socket.emit("auth_error", "Usuário não encontrado");
+        if (!row) return socket.emit("auth_error", "Usuário não encontrado.");
         const match = await bcrypt.compare(data.password, row.password);
         if (match)
           socket.emit("auth_success", {
             username: row.username,
             avatar: row.avatar,
           });
-        else socket.emit("auth_error", "Senha incorreta");
+        else socket.emit("auth_error", "Senha incorreta.");
       },
     );
   });
 
-  // Buscar lista de usuários para a barra lateral
   socket.on("get_users", () => {
     db.all("SELECT username, avatar FROM users", [], (err, rows) => {
       if (!err) socket.emit("user_list", rows);
     });
   });
 
-  // Atualizar Perfil (Nome e Foto)
   socket.on("update_profile", (data) => {
     db.run(
       "UPDATE users SET username = ?, avatar = ? WHERE username = ?",
       [data.newName, data.newAvatar, data.oldName],
       (err) => {
         if (!err) {
-          // Atualiza também o nome nas mensagens passadas (opcional)
           db.run("UPDATE messages SET user = ?, avatar = ? WHERE user = ?", [
             data.newName,
             data.newAvatar,
@@ -112,7 +112,7 @@ io.on("connection", (socket) => {
             username: data.newName,
             avatar: data.newAvatar,
           });
-          io.emit("refresh_users"); // Avisa todos para atualizarem a lista lateral
+          io.emit("refresh_users");
         }
       },
     );
