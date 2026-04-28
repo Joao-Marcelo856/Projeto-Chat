@@ -427,7 +427,7 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        socket.on('message deleted', (id) => {
+        socket.on(`message deleted`, (id) => {
             const msgElement = document.getElementById(`msg-${id}`);
             if (msgElement) msgElement.remove();
         });
@@ -447,11 +447,18 @@
 
         function changeRoom(r) {
             currentRoom = r;
-            document.getElementById('messages').innerHTML = '';
+
+            // 1. Limpa a tela antes de carregar o histórico
+            const messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = '';
+
+            // 2. Avisa o servidor para trocar de sala
             socket.emit('switch_room', r);
+
+            // 3. Destaca o botão ativo (CSS)
             document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active-room'));
-            // Procura o botão clicado para marcar como ativo
             event.target.classList.add('active-room');
+
             cancelReply();
         }
 

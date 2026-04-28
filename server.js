@@ -91,18 +91,21 @@ io.on("connection", (socket) => {
   });
 
   // APAGAR MENSAGEM
- socket.on("delete message", (msgId) => {
+  socket.on("delete message", (msgId) => {
     db.run("DELETE FROM messages WHERE id = ?", [msgId], (err) => {
-        if (!err) {
-            // Emite para TODOS os clientes que a mensagem foi apagada
-            io.emit("message deleted", msgId);
-        }
+      if (!err) {
+        // Emite para TODOS os clientes que a mensagem foi apagada
+        io.emit("message deleted", msgId);
+      } else {
+        console.error("Erro ao deletar:", err);
+      }
     });
+  });
+
+  // O Render vai preencher o process.env.PORT automaticamente
+  const PORT = process.env.PORT || 3000;
+
+  server.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+  });
 });
-
-// O Render vai preencher o process.env.PORT automaticamente
-const PORT = process.env.PORT || 3000;
-
-server.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-})});
