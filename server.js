@@ -67,7 +67,10 @@ app.use("/uploads", express.static("uploads"));
 app.use(express.static(__dirname));
 
 io.on("connection", (socket) => {
-  console.log("Conectado:", socket.id);
+  socket.on("typing", (data) => {
+    socket.to(data.room).emit("typing", data.user);
+    console.log("Conectado:", socket.id);
+  });
 
   // LOGICA DE REGISTRO
   socket.on("register", async (data) => {
@@ -132,20 +135,40 @@ io.on("connection", (socket) => {
   });
 
   // APAGAR MENSAGEM
-  socket.on("delete message", (msgId) => {
-    db.run("DELETE FROM messages WHERE id = ?", [msgId], (err) => {
-      if (!err) {
-        // Emite para TODOS os clientes que a mensagem foi apagada
-        io.emit("message deleted", msgId);
-      } else {
-        console.error("Erro ao deletar:", err);
+  socket.on("delete message", (data) => {
+    const { msgId, user } = data;
+
+    db.get("SELECT * FROM messages WHERE id = ?", [msgId], (err, row) => {
+      if (row && row.user === user) {
+        db.run("DELETE FROM messages WHERE id = ?", [msgId], () => {
+          io.emit("message deleted", msgId);
+        });
       }
     });
   });
-});
 
-const PORT = process.env.PORT || 3000;
+  socket.on("edit message", (data) => {
+    const { msgId, newText, user } = data;
 
-server.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+    db.get("SELECT * FROM messages WHERE id = ?", [msgId], (err, row) => {
+      if (row && row.user === user) {
+        db.run(
+          "UPDATE messages SET text = ? WHERE id = ?",
+          [newText, msgId],
+          () => {
+            io.emit("message edited", {
+              id: msgId,
+              newText,
+            });
+          },
+        );
+      }
+    });
+  });
+
+  const PORT = process.env.PORT || 3000;
+
+  server.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
+  });
 });

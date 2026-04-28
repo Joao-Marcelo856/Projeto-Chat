@@ -118,11 +118,9 @@
 
         /* MENSAGENS */
         .message {
-            margin-bottom: 15px;
             position: relative;
-            transition: 0.2s;
-            padding: 8px;
-            border-radius: 4px;
+            display: flex;
+            gap: 10px;
         }
 
         .message:hover {
@@ -130,9 +128,8 @@
         }
 
         .message-author {
-            color: #fff;
             font-weight: bold;
-            margin-right: 8px;
+            color: white;
         }
 
         .reply-indicator {
@@ -151,7 +148,6 @@
         }
 
         .actions-menu {
-            position: absolute;
             right: 10px;
             top: 5px;
             display: none;
@@ -162,6 +158,10 @@
 
         .message:hover .actions-menu {
             display: flex;
+        }
+
+        .btn-edit:hover {
+            background: #4f545c;
         }
 
         .btn-action {
@@ -250,6 +250,17 @@
             display: flex;
             flex-direction: column;
         }
+
+        .message-text {
+            color: #dcddde;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
     </style>
 </head>
 
@@ -268,8 +279,8 @@
     <div class="app-container">
         <div class="channels">
             <h3 style="margin-bottom:15px; font-size: 1.1em;">Canais</h3>
-            <div class="channel-btn active-room" onclick="changeRoom('geral')"># geral</div>
-            <div class="channel-btn" onclick="changeRoom('jogos')"># jogos</div>
+            <div class="channel-btn active-room" onclick="changeRoom(event, 'geral')"># geral</div>
+            <div class="channel-btn" onclick="changeRoom(event, 'jogos')"># jogos</div>
 
             <div class="user-footer">
                 <span id="display-username" style="font-weight: bold; font-size: 0.9em;"></span>
@@ -279,6 +290,7 @@
 
         <main class="chat-area">
             <div id="messages"></div>
+            <div id="typing-indicator" style="padding: 0 20px; font-size: 0.8em; color: #aaa;"></div>
 
             <div class="input-wrapper">
                 <div class="input-box">
@@ -334,6 +346,14 @@
         socket.on('auth_success', (user) => {
             localStorage.setItem('chat_user', user);
             location.reload();
+        });
+
+        socket.on("message edited", (data) => {
+            const msgDiv = document.getElementById(`msg-${data.id}`);
+            if (!msgDiv) return;
+
+            const textEl = msgDiv.querySelector('.message-text');
+            textEl.innerText = data.newText + " (editado)";
         });
 
         socket.on('auth_error', (msg) => alert(msg));
@@ -392,18 +412,6 @@
 
         socket.on('chat message', (data) => {
             renderMsg(data);
-
-            div.innerHTML = `
-    <img src="${data.avatar}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 10px;">
-    <div class="message-content">
-        <div class="actions-menu">
-            ${data.user === currentUser ? `<button class="btn-action btn-delete" onclick="socket.emit('delete message', ${data.id})">Apagar</button>` : ''}
-        </div>
-        <span class="message-author">${data.user}</span>
-        <span class="message-text">${data.text}</span>
-    </div>
-`;
-            messagesContainer.appendChild(div);
         });
 
         socket.on('load_history', (msgs) => {
@@ -411,34 +419,87 @@
             msgs.forEach(m => renderMsg(m));
         });
 
+        let lastUser = null;
+
         function renderMsg(data) {
             const container = document.getElementById('messages');
+
+            const isSameUser = data.user === lastUser;
+
             const div = document.createElement('div');
             div.className = 'message';
             div.id = `msg-${data.id}`;
 
-            // Corrige nomes das propriedades vindas do banco (que usam snake_case) ou do socket (camelCase)
-            const replyTo = data.reply_to_id || data.replyToId;
-            const imgUrl = data.image_url || data.imageUrl;
+            const time = new Date(data.timestamp || Date.now()).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
 
             div.innerHTML = `
-                ${replyTo ? `<span class="reply-indicator">↪ respondendo msg #${replyTo}</span>` : ''}
-                <div class="actions-menu">
-                    <button class="btn-action btn-reply" onclick="setReply(${data.id},'${data.user}')">Responder</button>
-                    ${data.user === currentUser ? `<button class="btn-action btn-delete" onclick="socket.emit('delete message', ${data.id})">Apagar</button>` : ''}
+        ${!isSameUser ? `<img src="${data.avatar || 'https://via.placeholder.com/40'}" class="avatar">` : `<div style="width:40px;"></div>`}
+        
+        <div class="message-content">
+            ${!isSameUser ? `
+                <div>
+                    <span class="message-author">${data.user}</span>
+                    <span style="font-size: 0.7em; color: #aaa; margin-left: 8px;">${time}</span>
                 </div>
-                <span class="message-author">${data.user}</span>
-                <span class="message-text">${data.text}</span>
-                ${imgUrl ? `<img src="${imgUrl}" class="chat-img">` : ''}
-            `;
+            ` : ''}
+
+            <span class="message-text">${data.text}</span>
+
+            ${(data.image_url) ? `<img src="${data.image_url}" class="chat-img">` : ''}
+
+            <div class="actions-menu">
+                ${data.user === currentUser ? ` <button class="btn-action btn-edit" onclick="startEdit(${data.id})">Editar</button> <button class="btn-action btn-delete" onclick="deleteMessage(${data.id})">Apagar</button>` : ''}
+            </div>
+        </div>
+    `;
+
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
+
+            lastUser = data.user;
         }
 
         socket.on(`message deleted`, (id) => {
             const msgElement = document.getElementById(`msg-${id}`);
             if (msgElement) msgElement.remove();
         });
+
+        socket.on("typing", (user) => {
+            const el = document.getElementById("typing-indicator");
+
+            el.innerText = `${user} está digitando...`;
+
+            clearTimeout(window.typingDisplayTimeout);
+            window.typingDisplayTimeout = setTimeout(() => {
+                el.innerText = "";
+            }, 2000);
+        });
+
+        function startEdit(id) {
+            const msgDiv = document.getElementById(`msg-${id}`);
+            const textEl = msgDiv.querySelector('.message-text');
+
+            const oldText = textEl.innerText;
+
+            textEl.innerHTML = `
+        <input type="text" id="edit-${id}" value="${oldText}" style="width: 100%; padding: 5px;">
+        <button onclick="saveEdit(${id})">Salvar</button>
+    `;
+        }
+
+        function saveEdit(id) {
+            const input = document.getElementById(`edit-${id}`);
+            const newText = input.value;
+
+            socket.emit("edit message", {
+                msgId: id,
+                newText,
+                user: currentUser
+            });
+        }
 
         function setReply(id, user) {
             replyId = id;
@@ -453,7 +514,9 @@
 
         window.onkeydown = (e) => { if (e.key === 'Escape') cancelReply(); }
 
-        function changeRoom(r) {
+        function changeRoom(event, r) {
+            const time = new Date().toLocaleTimeString();
+            lastUser = null;
             currentRoom = r;
 
             // 1. Limpa a tela antes de carregar o histórico
@@ -474,6 +537,24 @@
             localStorage.removeItem('chat_user');
             location.reload();
         }
+
+        function deleteMessage(id) {
+            socket.emit('delete message', {
+                msgId: id,
+                user: currentUser
+            });
+        }
+
+        let typingTimeout;
+
+        document.getElementById("input").addEventListener("input", () => {
+            socket.emit("typing", {
+                user: currentUser,
+                room: currentRoom
+            });
+
+            clearTimeout(typingTimeout);
+        });
     </script>
 </body>
 
