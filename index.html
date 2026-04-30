@@ -342,468 +342,506 @@
 
 <body>
 
-    <div id="auth-overlay" class="modal" style="display: flex;">
+    <!-- LOGIN -->
+    <div id="auth-overlay" class="modal" style="display:flex;">
         <div class="modal-box">
-            <h2 id="auth-title">Bem-vindo de volta!</h2>
-            <p id="auth-subtitle">Estamos muito animados em te ver novamente!</p>
+            <h2 id="auth-title">Bem-vindo!</h2>
 
-            <input type="text" id="auth-user" class="auth-input" placeholder="NOME DE USUÁRIO">
-            <input type="password" id="auth-pass" class="auth-input" placeholder="SENHA">
+            <input type="text" id="auth-user" class="auth-input" placeholder="Usuário">
+            <input type="password" id="auth-pass" class="auth-input" placeholder="Senha">
 
-            <button id="auth-submit-btn" class="btn btn-primary" onclick="handleAuth()">Entrar</button>
+            <button id="auth-submit-btn" class="btn btn-primary" onclick="handleAuth()">
+                Entrar
+            </button>
 
             <div id="auth-toggle-text" class="toggle-link" onclick="toggleAuthMode()">
-                Precisando de uma conta? Registre-se
+                Criar conta
             </div>
         </div>
     </div>
 
+    <!-- CONFIG -->
     <div id="settings-modal" class="modal">
         <div class="modal-box">
-            <h3>Configurações de Perfil</h3>
+
+            <h3>Perfil</h3>
+
             <img id="preview-img" class="avatar-preview" src="/uploads/default-avatar.png">
-            <input type="file" id="file-avatar" accept="image/*" onchange="previewFile()"
-                style="margin: 10px 0; color: #fff; font-size: 0.8em;">
-            <input type="text" id="new-name" class="auth-input" placeholder="Mudar nome de usuário">
-            <button class="btn btn-primary" onclick="saveProfile()">Salvar</button>
-            <button class="btn" onclick="toggleModal('settings-modal', false)"
-                style="background:none; color: #fff; margin-top: 5px;">Cancelar</button>
+
+            <input type="file" id="file-avatar" accept="image/*" onchange="previewFile()">
+
+            <input type="text" id="new-name" class="auth-input" placeholder="Novo nome">
+
+            <button class="btn btn-primary" onclick="saveProfile()">
+                Salvar
+            </button>
+
+            <button class="btn btn-danger" onclick="logout()">
+                Sair
+            </button>
+
         </div>
     </div>
 
+    <!-- SIDEBAR -->
     <div class="sidebar">
-        <div class="sidebar-header">Canais</div>
-        <div class="channel-btn active-room" onclick="changeRoom(event, 'geral')"># geral</div>
-        <div class="channel-btn" onclick="changeRoom(event, 'ajuda')"># ajuda</div>
 
-        <div style="margin-top: auto;" class="settings-footer">
-            <div id="user-info" style="display:flex; align-items:center; gap:8px;">
+        <div class="sidebar-header">
+            Canais
+        </div>
+
+        <div class="channel-btn active-room" onclick="changeRoom(event,'geral')">
+            # geral
+        </div>
+
+        <div class="channel-btn" onclick="changeRoom(event,'ajuda')">
+            # ajuda
+        </div>
+
+        <div style="margin-top:auto;" class="settings-footer">
+
+            <div style="display:flex;align-items:center;gap:8px;">
+
                 <img id="my-avatar" src="/uploads/default-avatar.png"
-                    style="width:32px; height:32px; border-radius:50%; object-fit: cover;">
-                <span id="my-name"
-                    style="font-size: 0.9em; font-weight: bold; max-width: 100px; overflow: hidden; text-overflow: ellipsis;">Usuário</span>
+                    style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+
+                <span id="my-name">Usuário</span>
+
             </div>
-            <span class="gear-icon" onclick="toggleModal('settings-modal', true)">⚙️</span>
+
+            <span class="gear-icon" onclick="toggleModal('settings-modal',true)">
+                ⚙️
+            </span>
+
         </div>
     </div>
 
-    <div class="chat-header">
-        <span id="header-icon" class="header-icon">#</span>
-        <div id="header-status" class="status-dot" style="display: none;"></div>
-        <h3 id="header-name">geral</h3>
-    </div>
-
+    <!-- CHAT -->
     <div class="chat-area">
-        <div id="messages"></div>
-        <div class="input-container">
-            <input type="text" id="input" placeholder="Conversar...">
+
+        <div class="chat-header">
+            <span id="header-icon" class="header-icon">#</span>
+            <div id="header-status" class="status-dot online" style="display:none;"></div>
+
+            <h3 id="header-name">geral</h3>
         </div>
+
+        <div id="messages"></div>
+
+        <div class="input-container">
+
+            <div class="input-area">
+
+                <input type="file" id="file-image" accept="image/*" style="display:none;" onchange="sendPhoto()">
+
+                <button class="attach-btn" onclick="document.getElementById('file-image').click()">
+                    +
+                </button>
+
+                <input type="text" id="message-input" placeholder="Conversar..."
+                    style="flex:1;background:none;border:none;color:#fff;outline:none;">
+
+            </div>
+
+        </div>
+
     </div>
 
+    <!-- USERS -->
     <div class="users-sidebar">
-        <div
-            style="font-weight:bold; margin-bottom:10px; font-size:0.75em; color:#8e9297; text-transform: uppercase; letter-spacing: 0.5px;">
+
+        <div style="font-weight:bold;margin-bottom:10px;">
             Usuários — <span id="user-count">0</span>
         </div>
+
         <div id="user-list"></div>
-    </div>
 
-    <div class="input-area">
-        <input type="file" id="file-image" style="display: none;" accept="image/*" onchange="sendPhoto()">
-
-        <button class="btn-action" onclick="document.getElementById('file-image').click()"
-            style="background: none; font-size: 20px;">
-            📷
-        </button>
-
-        <input type="text" id="input" placeholder="Conversar em #geral">
-        <button onclick="sendMessage()">Enviar</button>
-    </div>
-
-    <div id="settings-modal" class="modal">
-        <div class="modal-box">
-            <h3>Configurações de Perfil</h3>
-            <img id="preview-img" class="avatar-preview" src="/uploads/default-avatar.png">
-            <input type="file" id="file-avatar" accept="image/*" onchange="previewFile()"
-                style="margin: 10px 0; color: #fff; font-size: 0.8em;">
-            <input type="text" id="new-name" class="auth-input" placeholder="Mudar nome de usuário">
-
-            <button class="btn btn-primary" onclick="saveProfile()">Salvar Alterações</button>
-
-            <hr style="margin: 15px 0; border: 0; border-top: 1px solid #40444b;">
-
-            <button class="btn btn-danger" onclick="logout()">Sair da Conta</button>
-
-            <button class="btn" onclick="toggleModal('settings-modal', false)"
-                style="background:none; color: #fff; margin-top: 5px;">Cancelar</button>
-        </div>
-    </div>
-
-    <div class="input-container">
-        <div class="input-area">
-            <input type="file" id="file-image" style="display: none;" accept="image/*" onchange="sendPhoto()">
-            <button class="attach-btn" onclick="document.getElementById('file-image').click()">+</button>
-            <input type="text" id="input" placeholder="Conversar..."
-                style="flex: 1; background: none; border: none; padding: 12px; color: #fff; outline: none;">
-        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+
     <script>
+
         const socket = io();
+
         let currentUser = null;
-        let currentAvatar = '/uploads/default-avatar.png';
-        let currentRoom = 'geral';
+        let currentAvatar = "/uploads/default-avatar.png";
+        let currentRoom = "geral";
         let isLoginMode = true;
 
-        // --- AUTH LOGIC ---
-        function toggleAuthMode() {
-            isLoginMode = !isLoginMode;
-            const title = document.getElementById('auth-title');
-            const subtitle = document.getElementById('auth-subtitle');
-            const btn = document.getElementById('auth-submit-btn');
-            const toggleText = document.getElementById('auth-toggle-text');
+        // AUTH
 
-            if (isLoginMode) {
-                title.innerText = "Bem-vindo de volta!";
-                subtitle.innerText = "Estamos muito animados em te ver novamente!";
-                btn.innerText = "Entrar";
-                toggleText.innerText = "Precisando de uma conta? Registre-se";
-            } else {
-                title.innerText = "Criar uma conta";
-                subtitle.innerText = "Junte-se à nossa comunidade hoje mesmo!";
-                btn.innerText = "Registrar";
-                toggleText.innerText = "Já tem uma conta? Clique aqui";
-            }
+        function toggleAuthMode() {
+
+            isLoginMode = !isLoginMode;
+
+            document.getElementById("auth-submit-btn").innerText =
+                isLoginMode ? "Entrar" : "Registrar";
+
+            document.getElementById("auth-toggle-text").innerText =
+                isLoginMode
+                    ? "Criar conta"
+                    : "Já tenho conta";
         }
 
         function handleAuth() {
-            const username = document.getElementById('auth-user').value;
-            const password = document.getElementById('auth-pass').value;
 
-            if (!username || !password) return alert("Preencha todos os campos!");
+            const username =
+                document.getElementById("auth-user").value;
 
-            const eventType = isLoginMode ? 'login' : 'register';
-            socket.emit(eventType, { username, password });
+            const password =
+                document.getElementById("auth-pass").value;
+
+            if (!username || !password) {
+                return alert("Preencha tudo");
+            }
+
+            socket.emit(
+                isLoginMode ? "login" : "register",
+                { username, password }
+            );
         }
 
-        socket.on('auth_success', (data) => {
+        socket.on("auth_success", (data) => {
+
             currentUser = data.username;
-            currentAvatar = data.avatar || '/uploads/default-avatar.png';
-            document.getElementById('auth-overlay').style.display = 'none';
-            document.getElementById('my-name').innerText = currentUser;
-            document.getElementById('my-avatar').src = currentAvatar;
-            socket.emit('switch_room', 'geral');
-            socket.emit('get_users');
+            currentAvatar = data.avatar;
+
+            document.getElementById("auth-overlay").style.display = "none";
+
+            document.getElementById("my-name").innerText =
+                currentUser;
+
+            document.getElementById("my-avatar").src =
+                currentAvatar;
+
+            socket.emit("switch_room", currentRoom);
+
+            socket.emit("get_users");
         });
 
-        socket.on('auth_error', (msg) => alert(msg));
+        socket.on("auth_error", (msg) => {
+            alert(msg);
+        });
 
-        // --- CHAT LOGIC ---
-        function changeRoom(e, room) {
+        // ROOM
+
+        function changeRoom(event, room) {
+
             currentRoom = room;
-            document.getElementById('messages').innerHTML = '';
-            socket.emit('switch_room', room);
-            document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active-room'));
-            if (e) e.target.classList.add('active-room');
+
+            document.getElementById("messages").innerHTML = "";
+
+            socket.emit("switch_room", room);
+
+            document.querySelectorAll(".channel-btn")
+                .forEach(btn => btn.classList.remove("active-room"));
+
+            if (event) {
+                event.target.classList.add("active-room");
+            }
+
+            updateHeader(room, false);
         }
+
+        // HEADER
+
+        function updateHeader(name, isDM = false) {
+
+            const icon =
+                document.getElementById("header-icon");
+
+            const status =
+                document.getElementById("header-status");
+
+            const title =
+                document.getElementById("header-name");
+
+            if (isDM) {
+
+                icon.style.display = "none";
+
+                status.style.display = "block";
+
+            } else {
+
+                icon.style.display = "block";
+
+                status.style.display = "none";
+            }
+
+            title.innerText = name;
+        }
+
+        // DM
 
         function openDM(targetUser) {
-            const room = [currentUser, targetUser].sort().join('_pm_');
-            changeRoom(null, room);
+
+            if (targetUser === currentUser) return;
+
+            const room =
+                [currentUser, targetUser]
+                    .sort()
+                    .join("_pm_");
+
+            currentRoom = room;
+
+            document.getElementById("messages").innerHTML = "";
+
+            socket.emit("switch_room", room);
+
+            updateHeader(targetUser, true);
         }
 
-        document.getElementById('input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && e.target.value.trim()) {
-                socket.emit('chat message', {
-                    room: currentRoom,
-                    user: currentUser,
-                    avatar: currentAvatar,
-                    text: e.target.value
-                });
-                e.target.value = '';
-            }
-        });
+        // SEND MESSAGE
 
-        socket.on('chat message', (data) => {
+        document
+            .getElementById("message-input")
+            .addEventListener("keypress", (e) => {
+
+                if (e.key === "Enter") {
+
+                    const text = e.target.value.trim();
+
+                    if (!text) return;
+
+                    socket.emit("chat message", {
+                        room: currentRoom,
+                        user: currentUser,
+                        avatar: currentAvatar,
+                        text
+                    });
+
+                    e.target.value = "";
+                }
+            });
+
+        // RECEIVE MESSAGE
+
+        socket.on("chat message", (data) => {
+
             if (data.room !== currentRoom) return;
+
             addMessageToUI(data);
         });
 
-        socket.on('load_history', (rows) => {
-            const container = document.getElementById('messages');
-            container.innerHTML = ''; // 🔥 importante
-            rows.forEach(row => addMessageToUI(row));
+        socket.on("load_history", (rows) => {
+
+            const container =
+                document.getElementById("messages");
+
+            container.innerHTML = "";
+
+            rows.forEach(addMessageToUI);
         });
 
+        // UI MESSAGE
+
         function addMessageToUI(data) {
-            const container = document.getElementById('messages');
-            const div = document.createElement('div');
-            div.className = 'message';
+
+            const container =
+                document.getElementById("messages");
+
+            const div =
+                document.createElement("div");
+
+            div.className = "message";
+
             div.innerHTML = `
-                <img src="${data.avatar || '/uploads/default-avatar.png'}" class="msg-avatar">
+                <img src="${data.avatar || '/uploads/default-avatar.png'}"
+                     class="msg-avatar"
+                     onclick="openDM('${data.user}')"
+                     style="cursor:pointer">
+
                 <div class="msg-content">
-                    <span class="msg-author">${data.user}</span>
-                    <span class="msg-text">${data.text}</span>
+
+                    <span class="msg-author"
+                          onclick="openDM('${data.user}')"
+                          style="cursor:pointer">
+                        ${data.user}
+                    </span>
+
+                    ${data.text ? `
+                        <span class="msg-text">
+                            ${data.text}
+                        </span>
+                    ` : ""}
+
+                    ${data.image_url ? `
+                        <img src="${data.image_url}"
+                             style="max-width:250px;border-radius:10px;margin-top:5px;">
+                    ` : ""}
+
                 </div>
             `;
+
             container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
+
+            container.scrollTop =
+                container.scrollHeight;
         }
 
-        // --- USUÁRIOS E PERFIL ---
-        socket.on('user_list', (users) => {
-            const list = document.getElementById('user-list');
-            list.innerHTML = '';
-            document.getElementById('user-count').innerText = users.length;
-            users.forEach(u => {
-                if (u.username === currentUser) return;
-                const div = document.createElement('div');
-                div.className = 'user-item';
-                div.onclick = () => openDM(u.username);
+        // USERS
+
+        socket.on("user_list", (users) => {
+
+            const list =
+                document.getElementById("user-list");
+
+            list.innerHTML = "";
+
+            document.getElementById("user-count").innerText =
+                users.length;
+
+            users.forEach(user => {
+
+                if (user.username === currentUser) return;
+
+                const div =
+                    document.createElement("div");
+
+                div.className = "user-item";
+
+                div.onclick = () =>
+                    openDM(user.username);
+
                 div.innerHTML = `
-                    <img src="${u.avatar || '/uploads/default-avatar.png'}" style="width:32px; height:32px; border-radius:50%; object-fit: cover;">
-                    <span style="font-size: 0.9em;">${u.username}</span>
-                    <div class="status-dot"></div>
+                    <div class="status-dot online"></div>
+
+                    <img src="${user.avatar}"
+                         style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+
+                    <span>${user.username}</span>
                 `;
+
                 list.appendChild(div);
             });
         });
 
-        socket.on('refresh_users', () => socket.emit('get_users'));
+        socket.on("refresh_users", () => {
+            socket.emit("get_users");
+        });
+
+        // PROFILE
 
         function toggleModal(id, show) {
-            document.getElementById(id).style.display = show ? 'flex' : 'none';
-            if (show && id === 'settings-modal') {
-                document.getElementById('preview-img').src = currentAvatar;
-                document.getElementById('new-name').value = currentUser;
-            }
+
+            document.getElementById(id).style.display =
+                show ? "flex" : "none";
         }
 
         function previewFile() {
-            const file = document.getElementById('file-avatar').files[0];
-            const reader = new FileReader();
-            reader.onloadend = () => document.getElementById('preview-img').src = reader.result;
-            if (file) reader.readAsDataURL(file);
+
+            const file =
+                document.getElementById("file-avatar").files[0];
+
+            if (!file) return;
+
+            const reader =
+                new FileReader();
+
+            reader.onloadend = () => {
+                document.getElementById("preview-img").src =
+                    reader.result;
+            };
+
+            reader.readAsDataURL(file);
         }
 
         async function saveProfile() {
-            const fileInput = document.getElementById('file-avatar');
-            const newName = document.getElementById('new-name').value;
-            let finalAvatar = currentAvatar;
 
-            if (fileInput.files[0]) {
-                const formData = new FormData();
-                formData.append('image', fileInput.files[0]);
-                const res = await fetch('/upload', { method: 'POST', body: formData });
-                const data = await res.json();
-                finalAvatar = data.url;
+            const file =
+                document.getElementById("file-avatar").files[0];
+
+            const newName =
+                document.getElementById("new-name").value;
+
+            let avatar =
+                currentAvatar;
+
+            if (file) {
+
+                const formData =
+                    new FormData();
+
+                formData.append("image", file);
+
+                const res =
+                    await fetch("/upload", {
+                        method: "POST",
+                        body: formData
+                    });
+
+                const data =
+                    await res.json();
+
+                avatar = data.url;
             }
 
-            socket.emit('update_profile', {
+            socket.emit("update_profile", {
                 oldName: currentUser,
-                newName: newName,
-                newAvatar: finalAvatar
+                newName,
+                newAvatar: avatar
             });
         }
 
-        socket.on('profile_updated', (data) => {
+        socket.on("profile_updated", (data) => {
+
             currentUser = data.username;
             currentAvatar = data.avatar;
-            document.getElementById('my-name').innerText = currentUser;
-            document.getElementById('my-avatar').src = currentAvatar;
-            toggleModal('settings-modal', false);
+
+            document.getElementById("my-name").innerText =
+                currentUser;
+
+            document.getElementById("my-avatar").src =
+                currentAvatar;
+
+            toggleModal("settings-modal", false);
         });
+
+        // PHOTO
+
         async function sendPhoto() {
-            const fileInput = document.getElementById('file-image');
-            const file = fileInput.files[0];
+
+            const file =
+                document.getElementById("file-image").files[0];
 
             if (!file) return;
 
-            // 1. Criar o formulário para envio
-            const formData = new FormData();
-            formData.append('image', file);
+            const formData =
+                new FormData();
 
-            try {
-                // 2. Enviar para a rota de upload que já criamos no servidor
-                const res = await fetch('/upload', {
-                    method: 'POST',
+            formData.append("image", file);
+
+            const res =
+                await fetch("/upload", {
+                    method: "POST",
                     body: formData
                 });
-                const data = await res.json();
 
-                if (data.url) {
-                    // 3. Se o upload deu certo, envia a mensagem via Socket.io com a URL da imagem
-                    socket.emit('chat message', {
-                        room: currentRoom,
-                        user: currentUser,
-                        text: "", // Pode enviar texto vazio se for só imagem
-                        image_url: data.url, // URL retornada pelo servidor
-                        avatar: currentAvatar,
-                        replyToId: replyId
-                    });
+            const data =
+                await res.json();
 
-                    cancelReply(); // Limpa se estava respondendo alguém
-                    fileInput.value = ""; // Limpa o seletor para poder enviar a mesma foto de novo se quiser
-                }
-            } catch (err) {
-                console.error("Erro no upload:", err);
-                alert("Erro ao enviar imagem.");
-            }
+            socket.emit("chat message", {
+                room: currentRoom,
+                user: currentUser,
+                avatar: currentAvatar,
+                text: "",
+                image_url: data.url
+            });
         }
 
-        // --- LÓGICA DE LOGOUT ---
+        // LOGOUT
+
         function logout() {
-            if (confirm("Tem certeza que deseja sair?")) {
-                // Se você usa localStorage para manter a sessão, limpe aqui
-                localStorage.removeItem('chat_user');
-                location.reload(); // Recarrega a página para voltar à tela de login
-            }
+
+            localStorage.clear();
+
+            location.reload();
         }
 
-        // --- LÓGICA DE ENVIO DE FOTO ---
-        async function sendPhoto() {
-            const fileInput = document.getElementById('file-image');
-            const file = fileInput.files[0];
-            if (!file) return;
-
-            const formData = new FormData();
-            formData.append('image', file);
-
-            try {
-                const res = await fetch('/upload', { method: 'POST', body: formData });
-                const data = await res.json();
-
-                if (data.url) {
-                    socket.emit('chat message', {
-                        room: currentRoom,
-                        user: currentUser,
-                        avatar: currentAvatar,
-                        text: "", // Texto vazio pois é uma imagem
-                        image_url: data.url
-                    });
-                    fileInput.value = ""; // Limpa o input
-                }
-            } catch (err) {
-                alert("Erro ao enviar imagem");
-            }
-        }
-
-        // --- LÓGICA DE MENSAGENS PRIVADAS (DM) ---
-
-        function openDM(targetUser) {
-            if (targetUser === currentUser) return; // Não faz sentido abrir DM consigo mesmo
-
-            // Criamos um ID de sala único e determinístico (Ex: "Alice_pm_Bob")
-            // Usamos .sort() para que, não importa quem clique, o nome da sala seja o mesmo
-            const room = [currentUser, targetUser].sort().join('_pm_');
-
-            // Atualizamos a interface para mostrar que é uma DM
-            const messagesContainer = document.getElementById('messages');
-            messagesContainer.innerHTML = '';
-
-            currentRoom = room;
-            socket.emit('switch_room', room);
-
-            // Remove destaque dos canais públicos
-            document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active-room'));
-
-            // Opcional: Alterar um título no topo do chat para "Conversa com [User]"
-            console.log("Iniciando conversa privada com: " + targetUser);
-        }
-
-        // Atualize sua função de renderizar mensagens para que o nome seja clicável
-        function addMessageToUI(data) {
-            const container = document.getElementById('messages');
-            const div = document.createElement('div');
-            div.className = 'message';
-            div.id = `msg-${data.id}`;
-
-            // Tornamos o avatar e o nome clicáveis para abrir DM
-            div.innerHTML = `
-        <img src="${data.avatar || '/uploads/default-avatar.png'}" 
-             class="msg-avatar" 
-             onclick="openDM('${data.user}')" 
-             style="cursor:pointer">
-        <div class="msg-content">
-            <span class="msg-author" onclick="openDM('${data.user}')" style="cursor:pointer">
-                ${data.user}
-            </span>
-            <span class="msg-text">${data.text}</span>
-            ${data.image_url ? `<img src="${data.image_url}" class="chat-img">` : ''}
-        </div>
-    `;
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        // Função para atualizar o topo do chat
-        function updateHeader(name, isDM = false) {
-            const icon = document.getElementById('header-icon');
-            const title = document.getElementById('header-name');
-
-            icon.innerText = isDM ? '@' : '#';
-            title.innerText = name;
-        }
-
-        // ATUALIZE sua função changeRoom
-        function changeRoom(event, r) {
-            // ... seu código existente (socket.emit, clear messages, etc)
-
-            updateHeader(r, false); // Atualiza para # nome-do-canal
-
-            // ... resto do código
-        }
-
-        // ATUALIZE sua função openDM
-        function openDM(targetUser) {
-            if (targetUser === currentUser) return;
-
-            const room = [currentUser, targetUser].sort().join('_pm_');
-
-            // Limpa e troca de sala
-            document.getElementById('messages').innerHTML = '';
-            currentRoom = room;
-            socket.emit('switch_room', room);
-
-            // DICA DE UI: Atualiza o cabeçalho para @ Nome do Usuário
-            updateHeader(targetUser, true);
-
-            // Remove destaque dos botões de canais
-            document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active-room'));
-        }
-
-        function updateHeader(name, isDM = false, isOnline = true) {
-            const icon = document.getElementById('header-icon');
-            const statusDot = document.getElementById('header-status');
-            const title = document.getElementById('header-name');
-
-            if (isDM) {
-                // Em DM: Esconde o '#' e mostra a bolinha
-                icon.style.display = 'none';
-                statusDot.style.display = 'block';
-                statusDot.className = 'status-dot ' + (isOnline ? 'online' : 'offline');
-            } else {
-                // Em Canal: Mostra o '#' e esconde a bolinha
-                icon.style.display = 'block';
-                icon.innerText = '#';
-                statusDot.style.display = 'none';
-            }
-
-            title.innerText = name;
-        }
-
-        // Exemplo de como renderizar um utilizador na lista lateral
-        function renderUserList(users) {
-            const list = document.getElementById('user-list');
-            list.innerHTML = users.map(user => `
-        <div class="user-item" onclick="openDM('${user.username}')">
-            <div class="status-dot online"></div> 
-            <span>${user.username}</span>
-        </div>
-    `).join('');
-        }
     </script>
+
 </body>
 
 </html>
