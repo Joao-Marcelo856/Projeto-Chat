@@ -247,6 +247,96 @@
         .toggle-link:hover {
             text-decoration: underline;
         }
+
+        .btn-danger {
+            background: var(--danger);
+            color: #fff;
+            margin-top: 10px;
+        }
+
+        .btn-danger:hover {
+            background: #a12d2f;
+        }
+
+        .input-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-input);
+            padding: 5px 15px;
+            border-radius: 8px;
+        }
+
+        .attach-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 20px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .attach-btn:hover {
+            color: #fff;
+        }
+
+        .chat-header {
+            height: 48px;
+            min-height: 48px;
+            padding: 0 16px;
+            display: flex;
+            align-items: center;
+            background: var(--bg-main);
+            border-bottom: 1px solid #202225;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .header-icon {
+            color: #8e9297;
+            font-size: 22px;
+            margin-right: 8px;
+            font-weight: 400;
+        }
+
+        #header-name {
+            font-size: 16px;
+            color: #fff;
+            font-weight: 600;
+        }
+
+        /* Base da bolinha */
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 2px solid var(--bg-main);
+            /* Dá um pequeno contorno para destacar */
+        }
+
+        /* Cores de status */
+        .online {
+            background-color: #3ba55d;
+        }
+
+        .offline {
+            background-color: #747f8d;
+        }
+
+        .away {
+            background-color: #faa61a;
+        }
+
+        /* Opcional: Ausente */
+
+        /* Ajuste no cabeçalho para alinhar tudo */
+        .chat-header {
+            display: flex;
+            align-items: center;
+            padding: 10px 16px;
+            background: var(--bg-main);
+            border-bottom: 1px solid #202225;
+        }
     </style>
 </head>
 
@@ -297,6 +387,12 @@
         </div>
     </div>
 
+    <div class="chat-header">
+        <span id="header-icon" class="header-icon">#</span>
+        <div id="header-status" class="status-dot" style="display: none;"></div>
+        <h3 id="header-name">geral</h3>
+    </div>
+
     <div class="chat-area">
         <div id="messages"></div>
         <div class="input-container">
@@ -310,6 +406,46 @@
             Usuários — <span id="user-count">0</span>
         </div>
         <div id="user-list"></div>
+    </div>
+
+    <div class="input-area">
+        <input type="file" id="file-image" style="display: none;" accept="image/*" onchange="sendPhoto()">
+
+        <button class="btn-action" onclick="document.getElementById('file-image').click()"
+            style="background: none; font-size: 20px;">
+            📷
+        </button>
+
+        <input type="text" id="input" placeholder="Conversar em #geral">
+        <button onclick="sendMessage()">Enviar</button>
+    </div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-box">
+            <h3>Configurações de Perfil</h3>
+            <img id="preview-img" class="avatar-preview" src="/uploads/default-avatar.png">
+            <input type="file" id="file-avatar" accept="image/*" onchange="previewFile()"
+                style="margin: 10px 0; color: #fff; font-size: 0.8em;">
+            <input type="text" id="new-name" class="auth-input" placeholder="Mudar nome de usuário">
+
+            <button class="btn btn-primary" onclick="saveProfile()">Salvar Alterações</button>
+
+            <hr style="margin: 15px 0; border: 0; border-top: 1px solid #40444b;">
+
+            <button class="btn btn-danger" onclick="logout()">Sair da Conta</button>
+
+            <button class="btn" onclick="toggleModal('settings-modal', false)"
+                style="background:none; color: #fff; margin-top: 5px;">Cancelar</button>
+        </div>
+    </div>
+
+    <div class="input-container">
+        <div class="input-area">
+            <input type="file" id="file-image" style="display: none;" accept="image/*" onchange="sendPhoto()">
+            <button class="attach-btn" onclick="document.getElementById('file-image').click()">+</button>
+            <input type="text" id="input" placeholder="Conversar..."
+                style="flex: 1; background: none; border: none; padding: 12px; color: #fff; outline: none;">
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -478,6 +614,195 @@
             document.getElementById('my-avatar').src = currentAvatar;
             toggleModal('settings-modal', false);
         });
+        async function sendPhoto() {
+            const fileInput = document.getElementById('file-image');
+            const file = fileInput.files[0];
+
+            if (!file) return;
+
+            // 1. Criar o formulário para envio
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                // 2. Enviar para a rota de upload que já criamos no servidor
+                const res = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data.url) {
+                    // 3. Se o upload deu certo, envia a mensagem via Socket.io com a URL da imagem
+                    socket.emit('chat message', {
+                        room: currentRoom,
+                        user: currentUser,
+                        text: "", // Pode enviar texto vazio se for só imagem
+                        image_url: data.url, // URL retornada pelo servidor
+                        avatar: currentAvatar,
+                        replyToId: replyId
+                    });
+
+                    cancelReply(); // Limpa se estava respondendo alguém
+                    fileInput.value = ""; // Limpa o seletor para poder enviar a mesma foto de novo se quiser
+                }
+            } catch (err) {
+                console.error("Erro no upload:", err);
+                alert("Erro ao enviar imagem.");
+            }
+        }
+
+        // --- LÓGICA DE LOGOUT ---
+        function logout() {
+            if (confirm("Tem certeza que deseja sair?")) {
+                // Se você usa localStorage para manter a sessão, limpe aqui
+                localStorage.removeItem('chat_user');
+                location.reload(); // Recarrega a página para voltar à tela de login
+            }
+        }
+
+        // --- LÓGICA DE ENVIO DE FOTO ---
+        async function sendPhoto() {
+            const fileInput = document.getElementById('file-image');
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (data.url) {
+                    socket.emit('chat message', {
+                        room: currentRoom,
+                        user: currentUser,
+                        avatar: currentAvatar,
+                        text: "", // Texto vazio pois é uma imagem
+                        image_url: data.url
+                    });
+                    fileInput.value = ""; // Limpa o input
+                }
+            } catch (err) {
+                alert("Erro ao enviar imagem");
+            }
+        }
+
+        // --- LÓGICA DE MENSAGENS PRIVADAS (DM) ---
+
+        function openDM(targetUser) {
+            if (targetUser === currentUser) return; // Não faz sentido abrir DM consigo mesmo
+
+            // Criamos um ID de sala único e determinístico (Ex: "Alice_pm_Bob")
+            // Usamos .sort() para que, não importa quem clique, o nome da sala seja o mesmo
+            const room = [currentUser, targetUser].sort().join('_pm_');
+
+            // Atualizamos a interface para mostrar que é uma DM
+            const messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = '';
+
+            currentRoom = room;
+            socket.emit('switch_room', room);
+
+            // Remove destaque dos canais públicos
+            document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active-room'));
+
+            // Opcional: Alterar um título no topo do chat para "Conversa com [User]"
+            console.log("Iniciando conversa privada com: " + targetUser);
+        }
+
+        // Atualize sua função de renderizar mensagens para que o nome seja clicável
+        function addMessageToUI(data) {
+            const container = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.id = `msg-${data.id}`;
+
+            // Tornamos o avatar e o nome clicáveis para abrir DM
+            div.innerHTML = `
+        <img src="${data.avatar || '/uploads/default-avatar.png'}" 
+             class="msg-avatar" 
+             onclick="openDM('${data.user}')" 
+             style="cursor:pointer">
+        <div class="msg-content">
+            <span class="msg-author" onclick="openDM('${data.user}')" style="cursor:pointer">
+                ${data.user}
+            </span>
+            <span class="msg-text">${data.text}</span>
+            ${data.image_url ? `<img src="${data.image_url}" class="chat-img">` : ''}
+        </div>
+    `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // Função para atualizar o topo do chat
+        function updateHeader(name, isDM = false) {
+            const icon = document.getElementById('header-icon');
+            const title = document.getElementById('header-name');
+
+            icon.innerText = isDM ? '@' : '#';
+            title.innerText = name;
+        }
+
+        // ATUALIZE sua função changeRoom
+        function changeRoom(event, r) {
+            // ... seu código existente (socket.emit, clear messages, etc)
+
+            updateHeader(r, false); // Atualiza para # nome-do-canal
+
+            // ... resto do código
+        }
+
+        // ATUALIZE sua função openDM
+        function openDM(targetUser) {
+            if (targetUser === currentUser) return;
+
+            const room = [currentUser, targetUser].sort().join('_pm_');
+
+            // Limpa e troca de sala
+            document.getElementById('messages').innerHTML = '';
+            currentRoom = room;
+            socket.emit('switch_room', room);
+
+            // DICA DE UI: Atualiza o cabeçalho para @ Nome do Usuário
+            updateHeader(targetUser, true);
+
+            // Remove destaque dos botões de canais
+            document.querySelectorAll('.channel-btn').forEach(b => b.classList.remove('active-room'));
+        }
+
+        function updateHeader(name, isDM = false, isOnline = true) {
+            const icon = document.getElementById('header-icon');
+            const statusDot = document.getElementById('header-status');
+            const title = document.getElementById('header-name');
+
+            if (isDM) {
+                // Em DM: Esconde o '#' e mostra a bolinha
+                icon.style.display = 'none';
+                statusDot.style.display = 'block';
+                statusDot.className = 'status-dot ' + (isOnline ? 'online' : 'offline');
+            } else {
+                // Em Canal: Mostra o '#' e esconde a bolinha
+                icon.style.display = 'block';
+                icon.innerText = '#';
+                statusDot.style.display = 'none';
+            }
+
+            title.innerText = name;
+        }
+
+        // Exemplo de como renderizar um utilizador na lista lateral
+        function renderUserList(users) {
+            const list = document.getElementById('user-list');
+            list.innerHTML = users.map(user => `
+        <div class="user-item" onclick="openDM('${user.username}')">
+            <div class="status-dot online"></div> 
+            <span>${user.username}</span>
+        </div>
+    `).join('');
+        }
     </script>
 </body>
 
