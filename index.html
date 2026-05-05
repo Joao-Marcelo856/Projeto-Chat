@@ -505,7 +505,9 @@
         socket.on("auth_success", (data) => {
 
             currentUser = data.username;
-            currentAvatar = data.avatar;
+            currentAvatar = data.avatar || "/uploads/default-avatar.png";
+
+            window.isAdmin = data.isAdmin || 0;
 
             document.getElementById("auth-overlay").style.display = "none";
 
@@ -515,7 +517,7 @@
             document.getElementById("my-avatar").src =
                 currentAvatar;
 
-            socket.emit("switch_room", currentRoom);
+            socket.emit("switch_room", "geral");
 
             socket.emit("get_users");
         });
@@ -635,6 +637,15 @@
             rows.forEach(addMessageToUI);
         });
 
+        socket.on("message_deleted", (messageId) => {
+
+            const msg = document.getElementById(`msg-${messageId}`);
+
+            if (msg) {
+                msg.remove();
+            }
+        });
+
         // UI MESSAGE
 
         function addMessageToUI(data) {
@@ -647,38 +658,61 @@
 
             div.className = "message";
 
+            div.id = `msg-${data.id}`;
+
             div.innerHTML = `
-                <img src="${data.avatar || '/uploads/default-avatar.png'}"
-                     class="msg-avatar"
-                     onclick="openDM('${data.user}')"
-                     style="cursor:pointer">
+            <img src="${data.avatar || '/uploads/default-avatar.png'}"
+                 class="msg-avatar">
 
-                <div class="msg-content">
+            <div class="msg-content">
 
-                    <span class="msg-author"
-                          onclick="openDM('${data.user}')"
-                          style="cursor:pointer">
-                        ${data.user}
-                    </span>
+                <span class="msg-author">
+                    ${data.user}
+                </span>
 
-                    ${data.text ? `
-                        <span class="msg-text">
-                            ${data.text}
-                        </span>
-                    ` : ""}
+                <span class="msg-text">
+                    ${data.text || ""}
+                </span>
 
-                    ${data.image_url ? `
-                        <img src="${data.image_url}"
-                             style="max-width:250px;border-radius:10px;margin-top:5px;">
-                    ` : ""}
+                ${data.image_url
+                    ? `
+                    <img
+                        src="${data.image_url}"
+                        class="chat-img"
+                        style="
+                            max-width:250px;
+                            border-radius:10px;
+                            margin-top:5px;
+                        ">
+                    `
+                    : ""
+                }
 
-                </div>
-            `;
+                ${window.isAdmin
+                    ? `
+                    <button
+                        onclick="deleteMessage(${data.id})"
+                        style="
+                            margin-top:5px;
+                            background:#ed4245;
+                            border:none;
+                            color:white;
+                            padding:5px 10px;
+                            border-radius:5px;
+                            cursor:pointer;
+                        ">
+                        Apagar
+                    </button>
+                    `
+                    : ""
+                }
+
+            </div>
+        `;
 
             container.appendChild(div);
 
-            container.scrollTop =
-                container.scrollHeight;
+            container.scrollTop = container.scrollHeight;
         }
 
         // USERS
@@ -706,13 +740,13 @@
                     openDM(user.username);
 
                 div.innerHTML = `
-                    <div class="status-dot online"></div>
+                <div class="status-dot online"></div>
 
-                    <img src="${user.avatar}"
-                         style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+                <img src="${user.avatar}"
+                     style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
 
-                    <span>${user.username}</span>
-                `;
+                <span>${user.username}</span>
+            `;
 
                 list.appendChild(div);
             });
@@ -838,6 +872,16 @@
             localStorage.clear();
 
             location.reload();
+        }
+
+        // DELETE MESSAGE
+
+        function deleteMessage(messageId) {
+
+            socket.emit("delete_message", {
+                messageId,
+                admin: currentUser
+            });
         }
 
     </script>

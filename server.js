@@ -45,19 +45,17 @@ const upload = multer({ storage });
 const db = new sqlite3.Database("./chat.db");
 
 db.serialize(() => {
-  // USERS
-
-  db.run(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE,
-    password TEXT,
-    avatar TEXT DEFAULT '/uploads/default-avatar.png',
-    isAdmin INTEGER DEFAULT 0,
-    isMuted INTEGER DEFAULT 0,
-    isBanned INTEGER DEFAULT 0
-)`);
-
-  // MESSAGES
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE,
+      password TEXT,
+      avatar TEXT DEFAULT '/uploads/default-avatar.png',
+      isAdmin INTEGER DEFAULT 0,
+      isMuted INTEGER DEFAULT 0,
+      isBanned INTEGER DEFAULT 0
+    )
+  `);
 
   db.run(`
     CREATE TABLE IF NOT EXISTS messages (
@@ -104,9 +102,7 @@ app.post("/upload", upload.single("image"), (req, res) => {
 io.on("connection", (socket) => {
   console.log("Novo usuário conectado:", socket.id);
 
-  // =========================
   // REGISTER
-  // =========================
 
   socket.on("register", async (data) => {
     try {
@@ -129,7 +125,7 @@ io.on("connection", (socket) => {
           socket.emit("auth_success", {
             username: data.username,
             avatar: "/uploads/default-avatar.png",
-            role: "user",
+            isAdmin: 0,
           });
 
           io.emit("refresh_users");
@@ -142,14 +138,13 @@ io.on("connection", (socket) => {
     }
   });
 
-  // =========================
   // LOGIN
-  // =========================
 
   socket.on("login", (data) => {
     db.get(
       `
-      SELECT * FROM users
+      SELECT *
+      FROM users
       WHERE username = ?
       `,
       [data.username],
@@ -165,9 +160,7 @@ io.on("connection", (socket) => {
           return socket.emit("auth_error", "Usuário não encontrado.");
         }
 
-        // BAN CHECK
-
-        if (row.banned === 1) {
+        if (row.isBanned === 1) {
           return socket.emit("auth_error", "Você foi banido.");
         }
 
@@ -180,7 +173,7 @@ io.on("connection", (socket) => {
         socket.emit("auth_success", {
           username: row.username,
           avatar: row.avatar,
-          role: row.role,
+          isAdmin: row.isAdmin,
         });
 
         io.emit("refresh_users");
@@ -188,14 +181,12 @@ io.on("connection", (socket) => {
     );
   });
 
-  // =========================
   // GET USERS
-  // =========================
 
   socket.on("get_users", () => {
     db.all(
       `
-      SELECT username, avatar, role
+      SELECT username, avatar
       FROM users
       `,
       [],
@@ -211,9 +202,7 @@ io.on("connection", (socket) => {
     );
   });
 
-  // =========================
   // UPDATE PROFILE
-  // =========================
 
   socket.on("update_profile", (data) => {
     db.run(
@@ -227,7 +216,6 @@ io.on("connection", (socket) => {
       (err) => {
         if (err) {
           console.error(err);
-
           return;
         }
 
@@ -250,9 +238,7 @@ io.on("connection", (socket) => {
     );
   });
 
-  // =========================
   // SWITCH ROOM
-  // =========================
 
   socket.on("switch_room", (newRoom) => {
     socket.rooms.forEach((room) => {
@@ -283,62 +269,68 @@ io.on("connection", (socket) => {
     );
   });
 
-  // =========================
-  // SEND MESSAGE
-  // =========================
+  // CHAT MESSAGE
 
   socket.on("chat message", (data) => {
-    // impedir mensagem vazia
     if (!data.text && !data.image_url) return;
 
-    db.run(
+    db.get(
       `
-        INSERT INTO messages 
-        (room, user, text, image_url, avatar, reply_to_id)
-        VALUES (?, ?, ?, ?, ?, ?)
-        `,
-      [
-        data.room,
-        data.user,
-        data.text || "",
-        data.image_url || null,
-        data.avatar || "/uploads/default-avatar.png",
-        data.replyToId || null,
-      ],
+      SELECT isMuted
+      FROM users
+      WHERE username = ?
+      `,
+      [data.user],
 
-      function (err) {
-        if (err) {
-          console.error("Erro ao salvar mensagem:", err);
-          return;
+      (err, row) => {
+        if (row && row.isMuted === 1) {
+          return socket.emit("auth_error", "Você está silenciado.");
         }
 
-        // objeto completo da mensagem
-        const messageData = {
-          id: this.lastID,
-          room: data.room,
-          user: data.user,
-          text: data.text || "",
-          image_url: data.image_url || null,
-          avatar: data.avatar || "/uploads/default-avatar.png",
-          reply_to_id: data.replyToId || null,
-        };
+        db.run(
+          `
+          INSERT INTO messages
+          (room, user, text, image_url, avatar, reply_to_id)
+          VALUES (?, ?, ?, ?, ?, ?)
+          `,
+          [
+            data.room,
+            data.user,
+            data.text || "",
+            data.image_url || null,
+            data.avatar || "/uploads/default-avatar.png",
+            data.replyToId || null,
+          ],
 
-        // envia para todos da sala
-        io.to(data.room).emit("chat message", messageData);
+          function (err) {
+            if (err) {
+              console.error(err);
+              return;
+            }
 
-        console.log("Mensagem enviada:", messageData);
+            const messageData = {
+              id: this.lastID,
+              room: data.room,
+              user: data.user,
+              text: data.text || "",
+              image_url: data.image_url || null,
+              avatar: data.avatar || "/uploads/default-avatar.png",
+              reply_to_id: data.replyToId || null,
+            };
+
+            io.to(data.room).emit("chat message", messageData);
+          },
+        );
       },
     );
   });
 
-  // =========================
-  // DELETE MESSAGE (ADMIN)
-  // =========================
+  // DELETE MESSAGE
 
   socket.on("delete_message", (data) => {
     db.get(
       `
-      SELECT role
+      SELECT isAdmin
       FROM users
       WHERE username = ?
       `,
@@ -347,128 +339,24 @@ io.on("connection", (socket) => {
       (err, row) => {
         if (err || !row) return;
 
-        if (row.role !== "admin") return;
+        if (row.isAdmin !== 1) return;
 
         db.run(
           `
           DELETE FROM messages
           WHERE id = ?
           `,
-          [data.msgId],
+          [data.messageId],
 
           () => {
-            io.emit("message_deleted", data.msgId);
+            io.emit("message_deleted", data.messageId);
           },
         );
       },
     );
   });
 
-  // =========================
-  // MUTE USER (ADMIN)
-  // =========================
-
-  socket.on("mute_user", (data) => {
-    db.get(
-      `
-      SELECT role
-      FROM users
-      WHERE username = ?
-      `,
-      [data.admin],
-
-      (err, row) => {
-        if (err || !row) return;
-
-        if (row.role !== "admin") return;
-
-        db.run(
-          `
-          UPDATE users
-          SET muted = 1
-          WHERE username = ?
-          `,
-          [data.target],
-
-          () => {
-            io.emit("refresh_users");
-          },
-        );
-      },
-    );
-  });
-
-  // =========================
-  // UNMUTE USER
-  // =========================
-
-  socket.on("unmute_user", (data) => {
-    db.get(
-      `
-      SELECT role
-      FROM users
-      WHERE username = ?
-      `,
-      [data.admin],
-
-      (err, row) => {
-        if (err || !row) return;
-
-        if (row.role !== "admin") return;
-
-        db.run(
-          `
-          UPDATE users
-          SET muted = 0
-          WHERE username = ?
-          `,
-          [data.target],
-
-          () => {
-            io.emit("refresh_users");
-          },
-        );
-      },
-    );
-  });
-
-  // =========================
-  // BAN USER
-  // =========================
-
-  socket.on("ban_user", (data) => {
-    db.get(
-      `
-      SELECT role
-      FROM users
-      WHERE username = ?
-      `,
-      [data.admin],
-
-      (err, row) => {
-        if (err || !row) return;
-
-        if (row.role !== "admin") return;
-
-        db.run(
-          `
-          UPDATE users
-          SET banned = 1
-          WHERE username = ?
-          `,
-          [data.target],
-
-          () => {
-            io.emit("refresh_users");
-          },
-        );
-      },
-    );
-  });
-
-  // =========================
   // DISCONNECT
-  // =========================
 
   socket.on("disconnect", () => {
     console.log("Usuário desconectado:", socket.id);
