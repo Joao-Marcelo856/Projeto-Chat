@@ -47,17 +47,15 @@ const db = new sqlite3.Database("./chat.db");
 db.serialize(() => {
   // USERS
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE,
-      password TEXT,
-      avatar TEXT DEFAULT '/uploads/default-avatar.png',
-      role TEXT DEFAULT 'user',
-      muted INTEGER DEFAULT 0,
-      banned INTEGER DEFAULT 0
-    )
-  `);
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE,
+    password TEXT,
+    avatar TEXT DEFAULT '/uploads/default-avatar.png',
+    isAdmin INTEGER DEFAULT 0,
+    isMuted INTEGER DEFAULT 0,
+    isBanned INTEGER DEFAULT 0
+)`);
 
   // MESSAGES
 
@@ -290,65 +288,45 @@ io.on("connection", (socket) => {
   // =========================
 
   socket.on("chat message", (data) => {
-    db.get(
-      `
-      SELECT muted
-      FROM users
-      WHERE username = ?
-      `,
-      [data.user],
+    // impedir mensagem vazia
+    if (!data.text && !data.image_url) return;
 
-      (err, row) => {
+    db.run(
+      `
+        INSERT INTO messages 
+        (room, user, text, image_url, avatar, reply_to_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+        `,
+      [
+        data.room,
+        data.user,
+        data.text || "",
+        data.image_url || null,
+        data.avatar || "/uploads/default-avatar.png",
+        data.replyToId || null,
+      ],
+
+      function (err) {
         if (err) {
-          console.error(err);
+          console.error("Erro ao salvar mensagem:", err);
           return;
         }
 
-        // USER MUTED
+        // objeto completo da mensagem
+        const messageData = {
+          id: this.lastID,
+          room: data.room,
+          user: data.user,
+          text: data.text || "",
+          image_url: data.image_url || null,
+          avatar: data.avatar || "/uploads/default-avatar.png",
+          reply_to_id: data.replyToId || null,
+        };
 
-        if (row && row.muted === 1) {
-          return socket.emit("auth_error", "Você está silenciado.");
-        }
+        // envia para todos da sala
+        io.to(data.room).emit("chat message", messageData);
 
-        db.run(
-          `
-          INSERT INTO messages (
-            room,
-            user,
-            text,
-            image_url,
-            avatar,
-            reply_to_id
-          )
-          VALUES (?, ?, ?, ?, ?, ?)
-          `,
-          [
-            data.room,
-            data.user,
-            data.text || "",
-            data.image_url || null,
-            data.avatar || "/uploads/default-avatar.png",
-            data.replyToId || null,
-          ],
-
-          function (err) {
-            if (err) {
-              console.error("Erro ao salvar mensagem:", err);
-
-              return;
-            }
-
-            io.to(data.room).emit("chat message", {
-              id: this.lastID,
-              room: data.room,
-              user: data.user,
-              text: data.text || "",
-              image_url: data.image_url || null,
-              avatar: data.avatar || "/uploads/default-avatar.png",
-              reply_to_id: data.replyToId || null,
-            });
-          },
-        );
+        console.log("Mensagem enviada:", messageData);
       },
     );
   });
