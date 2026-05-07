@@ -129,6 +129,8 @@ io.on("connection", (socket) => {
             isAdmin: 0,
           });
 
+          onlineUsers[data.username] = socket.id;
+
           io.emit("refresh_users");
         },
       );
@@ -244,21 +246,25 @@ io.on("connection", (socket) => {
   // SWITCH ROOM
 
   socket.on("switch_room", (newRoom) => {
-    socket.rooms.forEach((room) => {
+    // sair das salas antigas
+    Array.from(socket.rooms).forEach((room) => {
       if (room !== socket.id) {
         socket.leave(room);
       }
     });
 
+    // entrar na nova sala
     socket.join(newRoom);
+
+    console.log("Usuário entrou na sala:", newRoom);
 
     db.all(
       `
-      SELECT *
-      FROM messages
-      WHERE room = ?
-      ORDER BY timestamp ASC
-      `,
+    SELECT *
+    FROM messages
+    WHERE room = ?
+    ORDER BY timestamp ASC
+    `,
       [newRoom],
 
       (err, rows) => {
@@ -275,6 +281,8 @@ io.on("connection", (socket) => {
   // CHAT MESSAGE
 
   socket.on("chat message", (data) => {
+    console.log("Mensagem recebida:", data);
+
     if (!data.text && !data.image_url) return;
 
     db.get(
@@ -282,7 +290,15 @@ io.on("connection", (socket) => {
       [data.user],
 
       (err, row) => {
-        if (err || !row) return;
+        if (err) {
+          console.error(err);
+          return;
+        }
+
+        if (!row) {
+          console.log("Usuário não encontrado:", data.user);
+          return;
+        }
 
         // BANIDO
         if (row.isBanned === 1) {
