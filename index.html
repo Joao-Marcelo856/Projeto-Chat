@@ -97,25 +97,60 @@
             font-size: 0.9em;
         }
 
-        /* BARRA LATERAL DIREITA (USUÁRIOS) */
-        .users-sidebar {
-            width: 200px;
-            background: #2f3136;
-            padding: 10px;
-            border-left: 1px solid #202225;
+        .user-item:hover {
+            background: rgba(255, 255, 255, 0.05);
         }
 
-        .user-item {
+        .mod-btn {
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            color: white;
+            text-transform: uppercase;
+        }
+
+        .btn-mute {
+            background-color: #faa61a;
+        }
+
+        /* Amarelo/Laranja */
+        .btn-unmute {
+            background-color: #3ba55c;
+        }
+
+        /* Verde */
+        .btn-ban {
+            background-color: var(--danger);
+        }
+
+        /* Vermelho */
+
+        .mod-btn:hover {
+            filter: brightness(1.2);
+        }
+
+        .user-info {
+            flex: 1;
+            min-width: 0;
             display: flex;
             align-items: center;
             gap: 8px;
-            padding: 8px;
-            cursor: pointer;
-            border-radius: 5px;
         }
 
-        .user-item:hover {
-            background: #393d43;
+        .user-actions {
+            flex-shrink: 0;
+            display: none;
+            /* Mantém o seu efeito de esconder */
+            gap: 4px;
+        }
+
+        .user-actions {
+            display: none;
+            /* Esconde os botões */
+            gap: 5px;
         }
 
         .status-dot {
@@ -337,6 +372,64 @@
             background: var(--bg-main);
             border-bottom: 1px solid #202225;
         }
+
+        .user-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            flex-wrap: wrap;
+        }
+
+        .user-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .user-left span {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .admin-actions {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .admin-btn {
+            border: none;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: 0.2s;
+        }
+
+        .admin-btn:hover {
+            opacity: 0.8;
+        }
+
+        .btn-mute {
+            background: #faa61a;
+        }
+
+        .btn-unmute {
+            background: #43b581;
+        }
+
+        .btn-ban {
+            background: #ed4245;
+        }
     </style>
 </head>
 
@@ -468,6 +561,7 @@
         let currentAvatar = "/uploads/default-avatar.png";
         let currentRoom = "geral";
         let isLoginMode = true;
+        let isMuted = false;
 
         // AUTH
 
@@ -502,12 +596,53 @@
             );
         }
 
+        socket.on("muted", () => {
+
+            isMuted = true;
+
+            alert("Você foi silenciado temporariamente.");
+        });
+
+        socket.on('update_user_list', (users) => {
+            const userList = document.getElementById('user-list'); // Verifique o ID do seu container
+            userList.innerHTML = '';
+
+            users.forEach(user => {
+                // Não mostrar botões para nós mesmos
+                const isMe = user.username === currentUser;
+
+                const userElement = document.createElement('div');
+                userElement.className = 'user-item';
+
+                // HTML interno com a estrutura nova
+                userElement.innerHTML = `
+            <div class="user-info">
+                <span>${user.username}</span>
+                ${user.isMuted ? '<small style="color:orange">(Muted)</small>' : ''}
+            </div>
+            
+            ${!isMe ? `
+                <div class="user-actions">
+                    ${user.isMuted
+                            ? `<button class="mod-btn btn-unmute" onclick="unmuteUser('${user.username}')">Unmute</button>`
+                            : `<button class="mod-btn btn-mute" onclick="muteUser('${user.username}')">Mute</button>`
+                        }
+                    <button class="mod-btn btn-ban" onclick="banUser('${user.username}')">Ban</button>
+                </div>
+            ` : ''}
+        `;
+
+                userList.appendChild(userElement);
+            });
+        });
+
         socket.on("auth_success", (data) => {
 
             currentUser = data.username;
             currentAvatar = data.avatar || "/uploads/default-avatar.png";
 
             window.isAdmin = data.isAdmin || 0;
+            isMuted = data.isMuted || false;
 
             document.getElementById("auth-overlay").style.display = "none";
 
@@ -517,13 +652,19 @@
             document.getElementById("my-avatar").src =
                 currentAvatar;
 
-            socket.emit("switch_room", "geral");
+            currentRoom = "geral";
+
+            socket.emit("switch_room", currentRoom);
 
             socket.emit("get_users");
         });
 
         socket.on("auth_error", (msg) => {
             alert(msg);
+
+            if (msg.includes("silenciado")) {
+                isMuted = true;
+            }
         });
 
         // ROOM
@@ -595,41 +736,37 @@
             updateHeader(targetUser, true);
         }
 
-        // SEND MESSAGE
+        // SEND MESSAGE - Versão Otimizada
+        document.getElementById("message-input").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                const text = e.target.value.trim();
 
-        document
-            .getElementById("message-input")
-            .addEventListener("keypress", (e) => {
+                // Só envia se houver texto E um usuário logado
+                if (!text || !currentUser) return;
 
-                if (e.key === "Enter") {
+                console.log("[FRONT] Enviando mensagem...");
 
-                    const text = e.target.value.trim();
+                socket.emit("chat message", {
+                    room: currentRoom,
+                    user: currentUser,
+                    avatar: currentAvatar,
+                    text: text
+                });
 
-                    if (!text) return;
-
-                    socket.emit("chat message", {
-                        room: currentRoom,
-                        user: currentUser,
-                        avatar: currentAvatar,
-                        text
-                    });
-
-                    console.log({
-                        room: currentRoom,
-                        user: currentUser,
-                        avatar: currentAvatar,
-                        text
-                    });
-
-                    e.target.value = "";
-                }
-            });
+                // Limpa o campo na hora
+                e.target.value = "";
+                e.preventDefault();
+            }
+        });
 
         // RECEIVE MESSAGE
 
         socket.on("chat message", (data) => {
 
-            if (data.room !== currentRoom) return;
+            console.log("Mensagem chegou no front:", data);
+
+            // proteção
+            if (!data || !data.user) return;
 
             addMessageToUI(data);
         });
@@ -665,57 +802,68 @@
 
             div.className = "message";
 
-            div.id = `msg-${data.id}`;
+            if (data.id) {
+                div.id = `msg-${data.id}`;
+            }
+
+            const avatar =
+                data.avatar || "/uploads/default-avatar.png";
+
+            const username =
+                data.user || "Usuário";
+
+            const text =
+                data.text || "";
 
             div.innerHTML = `
-            <img src="${data.avatar || '/uploads/default-avatar.png'}"
-                 class="msg-avatar">
+        <img src="${avatar}"
+             class="msg-avatar">
 
-            <div class="msg-content">
+        <div class="msg-content">
 
-                <span class="msg-author">
-                    ${data.user}
-                </span>
+            <span class="msg-author">
+                ${username}
+            </span>
 
-                <span class="msg-text">
-                    ${data.text || ""}
-                </span>
+            <span class="msg-text">
+                ${text}
+            </span>
 
-                ${data.image_url
+            ${data.image_url
                     ? `
-                    <img
-                        src="${data.image_url}"
-                        class="chat-img"
-                        style="
-                            max-width:250px;
-                            border-radius:10px;
-                            margin-top:5px;
-                        ">
-                    `
+                <img
+                    src="${data.image_url}"
+                    class="chat-img"
+                    style="
+                        max-width:250px;
+                        border-radius:10px;
+                        margin-top:5px;
+                    ">
+                `
                     : ""
                 }
 
-                ${window.isAdmin
+            ${(window.isAdmin || username === currentUser) && data.id
                     ? `
-                    <button
-                        onclick="deleteMessage(${data.id})"
-                        style="
-                            margin-top:5px;
-                            background:#ed4245;
-                            border:none;
-                            color:white;
-                            padding:5px 10px;
-                            border-radius:5px;
-                            cursor:pointer;
-                        ">
-                        Apagar
-                    </button>
-                    `
+                <button
+                    onclick="deleteMessage(${data.id})"
+                    style="
+                        margin-top:5px;
+                        background:#ed4245;
+                        border:none;
+                        color:white;
+                        padding:5px 10px;
+                        border-radius:5px;
+                        cursor:pointer;
+                    ">
+                    Apagar
+                </button>
+                `
                     : ""
                 }
 
-            </div>
-        `;
+        </div>
+    `;
 
             container.appendChild(div);
 
@@ -747,42 +895,45 @@
                     openDM(user.username);
 
                 div.innerHTML = `
+<div class="user-left">
+
     <div class="status-dot online"></div>
 
     <img src="${user.avatar}"
-         style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+        style="
+            width:32px;
+            height:32px;
+            border-radius:50%;
+            object-fit:cover;
+        ">
 
     <span>${user.username}</span>
 
-    ${window.isAdmin ? `
-        <div style="margin-left:auto;display:flex;gap:5px;">
+</div>
 
-            <button onclick="event.stopPropagation(); muteUser('${user.username}')"
-                style="
-                    background:#faa61a;
-                    border:none;
-                    color:white;
-                    padding:3px 6px;
-                    border-radius:5px;
-                    cursor:pointer;
-                ">
-                Mute
-            </button>
+${window.isAdmin ? `
+<div class="admin-actions">
 
-            <button onclick="event.stopPropagation(); banUser('${user.username}')"
-                style="
-                    background:#ed4245;
-                    border:none;
-                    color:white;
-                    padding:3px 6px;
-                    border-radius:5px;
-                    cursor:pointer;
-                ">
-                Ban
-            </button>
+    <button
+        class="admin-btn btn-mute"
+        onclick="event.stopPropagation(); muteUser('${user.username}')">
+        Mute
+    </button>
 
-        </div>
-    ` : ""}
+    <button
+        class="admin-btn btn-unmute"
+        onclick="event.stopPropagation(); unmuteUser('${user.username}')">
+        Unmute
+    </button>
+
+    <button
+        class="admin-btn btn-ban"
+        onclick="event.stopPropagation(); banUser('${user.username}')">
+        Ban
+    </button>
+
+</div>
+` : ""}
 `;
 
                 list.appendChild(div);
@@ -931,6 +1082,23 @@
             alert(username + " foi silenciado.");
         }
 
+        function unmuteUser(username) {
+
+            socket.emit("unmute_user", {
+                admin: currentUser,
+                target: username
+            });
+
+            alert(username + " foi desmutado.");
+        }
+
+        socket.on("unmuted", () => {
+
+            isMuted = false;
+
+            alert("Você foi desmutado.");
+        });
+
         function banUser(username) {
 
             const confirmar =
@@ -955,8 +1123,52 @@
             location.reload();
         });
 
-    </script>
+        // LISTA DE USUÁRIOS COM BOTÕES DE MODERAÇÃO
+        socket.on("update_user_list", (users) => {
+            const list = document.getElementById("user-list");
+            list.innerHTML = "";
+            users.forEach(u => {
+                const isMe = u.username === currentUser;
+                const div = document.createElement("div");
+                div.className = "user-item";
+                div.innerHTML = `
+                    <div class="user-info">
+                        <img src="${u.avatar || '/uploads/default-avatar.png'}">
+                        <span>${u.username} ${u.isMuted ? '<small style="color:orange">🔇</small>' : ''}</span>
+                    </div>
+                    ${!isMe ? `
+                        <div class="user-actions">
+                            ${u.isMuted
+                            ? `<button class="mod-btn btn-unmute" onclick="unmuteUser('${u.username}')">Unmute</button>`
+                            : `<button class="mod-btn btn-mute" onclick="muteUser('${u.username}')">Mute</button>`
+                        }
+                            <button class="mod-btn btn-ban" onclick="banUser('${u.username}')">Ban</button>
+                        </div>
+                    ` : ''}
+                `;
+                list.appendChild(div);
+            });
+        });
 
+        function changeRoom(e, room) {
+            currentRoom = room;
+            document.querySelectorAll(".channel-btn").forEach(b => b.classList.remove("active-room"));
+            e.target.classList.add("active-room");
+            socket.emit("switch_room", room);
+        }
+
+        function muteUser(target) { socket.emit("mute_user", { admin: currentUser, target }); }
+        function unmuteUser(target) { socket.emit("unmute_user", { admin: currentUser, target }); }
+        function banUser(target) { if (confirm(`Banir ${target}?`)) socket.emit("ban_user", { admin: currentUser, target }); }
+
+        socket.on("refresh_users", () => socket.emit("get_online_users"));
+        socket.on("user_banned", () => { alert("Você foi banido."); logout(); });
+
+        function logout() {
+            localStorage.clear();
+            location.reload();
+        }
+    </script>
 </body>
 
 </html>

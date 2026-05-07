@@ -127,6 +127,7 @@ io.on("connection", (socket) => {
             username: data.username,
             avatar: "/uploads/default-avatar.png",
             isAdmin: 0,
+            isMuted: 0,
           });
 
           onlineUsers[data.username] = socket.id;
@@ -177,6 +178,7 @@ io.on("connection", (socket) => {
           username: row.username,
           avatar: row.avatar,
           isAdmin: row.isAdmin,
+          isMuted: row.isMuted,
         });
 
         onlineUsers[row.username] = socket.id;
@@ -216,7 +218,7 @@ io.on("connection", (socket) => {
       SET username = ?, avatar = ?
       WHERE username = ?
       `,
-      [data.newName, data.newAvatar, data.oldName],
+      [data.newName?.trim() || data.oldName, data.newAvatar, data.oldName],
 
       (err) => {
         if (err) {
@@ -230,7 +232,7 @@ io.on("connection", (socket) => {
           SET user = ?, avatar = ?
           WHERE user = ?
           `,
-          [data.newName, data.newAvatar, data.oldName],
+          [data.newName?.trim() || data.oldName, data.newAvatar, data.oldName],
         );
 
         socket.emit("profile_updated", {
@@ -245,16 +247,18 @@ io.on("connection", (socket) => {
 
   // SWITCH ROOM
 
-  socket.on("switch_room", (newRoom) => {
+  socket.on("switch_room", async (newRoom) => {
     // sair das salas antigas
-    Array.from(socket.rooms).forEach((room) => {
+    const rooms = [...socket.rooms];
+
+    for (const room of rooms) {
       if (room !== socket.id) {
-        socket.leave(room);
+        await socket.leave(room);
       }
-    });
+    }
 
     // entrar na nova sala
-    socket.join(newRoom);
+    await socket.join(newRoom);
 
     console.log("Usuário entrou na sala:", newRoom);
 
@@ -278,48 +282,43 @@ io.on("connection", (socket) => {
     );
   });
 
-  // CHAT MESSAGE
+  // CHAT MESSAGE - Versão com Debug e Correção
 
   socket.on("chat message", (data) => {
-    console.log("Mensagem recebida:", data);
+    console.log("--- Nova Mensagem Recebida no Servidor ---");
+    console.log("Usuário:", data.user, "| Sala:", data.room);
 
     if (!data.text && !data.image_url) return;
 
+    // Procure por esta linha no seu socket.on("chat message")
     db.get(
-      "SELECT isMuted, isBanned FROM users WHERE username = ?",
+      "SELECT isMuted, isBanned FROM users WHERE LOWER(username) = LOWER(?)", // Usamos LOWER para ignorar maiúsculas
       [data.user],
-
       (err, row) => {
         if (err) {
-          console.error(err);
+          console.error("Erro no banco:", err);
           return;
         }
 
         if (!row) {
-          console.log("Usuário não encontrado:", data.user);
+          // Se cair aqui, o usuário 'data.user' não existe na tabela 'users'
+          console.log(`[ERRO] O usuário "${data.user}" tentou postar mas não existe no banco.`);
+          socket.emit("auth_error", "Sua sessão expirou. Por favor, faça login novamente.");
           return;
         }
 
-        // BANIDO
         if (row.isBanned === 1) {
           socket.emit("auth_error", "Você foi banido.");
-
-          socket.disconnect();
-
-          return;
+          return socket.disconnect();
         }
 
-        // MUTADO
         if (row.isMuted === 1) {
           return socket.emit("auth_error", "Você está silenciado.");
         }
 
         db.run(
-          `
-                INSERT INTO messages
-                (room, user, text, image_url, avatar, reply_to_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-                `,
+          `INSERT INTO messages (room, user, text, image_url, avatar, reply_to_id)
+           VALUES (?, ?, ?, ?, ?, ?)`,
           [
             data.room,
             data.user,
@@ -328,10 +327,9 @@ io.on("connection", (socket) => {
             data.avatar || "/uploads/default-avatar.png",
             data.replyToId || null,
           ],
-
           function (err) {
             if (err) {
-              console.error(err);
+              console.error("[ERRO DB INSERT]:", err);
               return;
             }
 
@@ -343,12 +341,15 @@ io.on("connection", (socket) => {
               image_url: data.image_url || null,
               avatar: data.avatar || "/uploads/default-avatar.png",
               reply_to_id: data.replyToId || null,
+              timestamp: new Date()
             };
 
+            // Envia para TODOS na sala (incluindo o remetente)
             io.to(data.room).emit("chat message", messageData);
-          },
+            console.log("[SUCESSO]: Mensagem enviada para a sala", data.room);
+          }
         );
-      },
+      }
     );
   });
 
@@ -400,6 +401,12 @@ io.on("connection", (socket) => {
           [data.target],
 
           () => {
+            const targetSocketId = onlineUsers[data.target];
+
+            if (targetSocketId) {
+              io.to(targetSocketId).emit("muted");
+            }
+
             io.emit("refresh_users");
           },
         );
@@ -424,6 +431,12 @@ io.on("connection", (socket) => {
           [data.target],
 
           () => {
+            const targetSocketId = onlineUsers[data.target];
+
+            if (targetSocketId) {
+              io.to(targetSocketId).emit("unmuted");
+            }
+
             io.emit("refresh_users");
           },
         );
