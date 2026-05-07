@@ -356,6 +356,78 @@ io.on("connection", (socket) => {
     );
   });
 
+  // MUTE USER
+
+  socket.on("mute_user", (data) => {
+    db.get(
+      "SELECT isAdmin FROM users WHERE username = ?",
+      [data.admin],
+
+      (err, row) => {
+        if (err || !row) return;
+
+        if (row.isAdmin !== 1) return;
+
+        db.run(
+          "UPDATE users SET isMuted = 1 WHERE username = ?",
+          [data.target],
+
+          () => {
+            io.emit("refresh_users");
+          },
+        );
+      },
+    );
+  });
+
+  // UNMUTE USER
+
+  socket.on("unmute_user", (data) => {
+    db.get(
+      "SELECT isAdmin FROM users WHERE username = ?",
+      [data.admin],
+
+      (err, row) => {
+        if (err || !row) return;
+
+        if (row.isAdmin !== 1) return;
+
+        db.run(
+          "UPDATE users SET isMuted = 0 WHERE username = ?",
+          [data.target],
+
+          () => {
+            io.emit("refresh_users");
+          },
+        );
+      },
+    );
+  });
+
+  // BAN USER
+
+  socket.on("ban_user", (data) => {
+    db.get(
+      "SELECT isAdmin FROM users WHERE username = ?",
+      [data.admin],
+
+      (err, row) => {
+        if (err || !row) return;
+
+        if (row.isAdmin !== 1) return;
+
+        db.run(
+          "UPDATE users SET isBanned = 1 WHERE username = ?",
+          [data.target],
+
+          () => {
+            io.emit("refresh_users");
+          },
+        );
+      },
+    );
+  });
+
   // DISCONNECT
 
   socket.on("disconnect", () => {

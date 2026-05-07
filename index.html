@@ -740,13 +740,43 @@
                     openDM(user.username);
 
                 div.innerHTML = `
-                <div class="status-dot online"></div>
+    <div class="status-dot online"></div>
 
-                <img src="${user.avatar}"
-                     style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
+    <img src="${user.avatar}"
+         style="width:32px;height:32px;border-radius:50%;object-fit:cover;">
 
-                <span>${user.username}</span>
-            `;
+    <span>${user.username}</span>
+
+    ${window.isAdmin ? `
+        <div style="margin-left:auto;display:flex;gap:5px;">
+
+            <button onclick="event.stopPropagation(); muteUser('${user.username}')"
+                style="
+                    background:#faa61a;
+                    border:none;
+                    color:white;
+                    padding:3px 6px;
+                    border-radius:5px;
+                    cursor:pointer;
+                ">
+                Mute
+            </button>
+
+            <button onclick="event.stopPropagation(); banUser('${user.username}')"
+                style="
+                    background:#ed4245;
+                    border:none;
+                    color:white;
+                    padding:3px 6px;
+                    border-radius:5px;
+                    cursor:pointer;
+                ">
+                Ban
+            </button>
+
+        </div>
+    ` : ""}
+`;
 
                 list.appendChild(div);
             });
@@ -882,6 +912,31 @@
                 messageId,
                 admin: currentUser
             });
+        }
+
+        function muteUser(username) {
+
+            socket.emit("mute_user", {
+                admin: currentUser,
+                target: username
+            });
+
+            alert(username + " foi silenciado.");
+        }
+
+        function banUser(username) {
+
+            const confirmar =
+                confirm("Banir " + username + "?");
+
+            if (!confirmar) return;
+
+            socket.emit("ban_user", {
+                admin: currentUser,
+                target: username
+            });
+
+            alert(username + " foi banido.");
         }
 
     </script>
