@@ -1,3 +1,4 @@
+const onlineUsers = {};
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -176,6 +177,8 @@ io.on("connection", (socket) => {
           isAdmin: row.isAdmin,
         });
 
+        onlineUsers[row.username] = socket.id;
+
         io.emit("refresh_users");
       },
     );
@@ -275,24 +278,32 @@ io.on("connection", (socket) => {
     if (!data.text && !data.image_url) return;
 
     db.get(
-      `
-      SELECT isMuted
-      FROM users
-      WHERE username = ?
-      `,
+      "SELECT isMuted, isBanned FROM users WHERE username = ?",
       [data.user],
 
       (err, row) => {
-        if (row && row.isMuted === 1) {
+        if (err || !row) return;
+
+        // BANIDO
+        if (row.isBanned === 1) {
+          socket.emit("auth_error", "Você foi banido.");
+
+          socket.disconnect();
+
+          return;
+        }
+
+        // MUTADO
+        if (row.isMuted === 1) {
           return socket.emit("auth_error", "Você está silenciado.");
         }
 
         db.run(
           `
-          INSERT INTO messages
-          (room, user, text, image_url, avatar, reply_to_id)
-          VALUES (?, ?, ?, ?, ?, ?)
-          `,
+                INSERT INTO messages
+                (room, user, text, image_url, avatar, reply_to_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+                `,
           [
             data.room,
             data.user,
@@ -421,6 +432,12 @@ io.on("connection", (socket) => {
           [data.target],
 
           () => {
+            const targetSocketId = onlineUsers[data.target];
+
+            if (targetSocketId) {
+              io.to(targetSocketId).emit("user_banned");
+            }
+
             io.emit("refresh_users");
           },
         );
@@ -432,6 +449,11 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("Usuário desconectado:", socket.id);
+    for (const username in onlineUsers) {
+      if (onlineUsers[username] === socket.id) {
+        delete onlineUsers[username];
+      }
+    }
   });
 });
 

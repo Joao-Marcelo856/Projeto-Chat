@@ -939,6 +939,15 @@
             alert(username + " foi banido.");
         }
 
+        socket.on("user_banned", () => {
+
+            alert("Você foi banido.");
+
+            socket.disconnect();
+
+            location.reload();
+        });
+
     </script>
 
 </body>
