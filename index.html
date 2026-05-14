@@ -793,19 +793,15 @@
         // UI MESSAGE
 
         function addMessageToUI(data) {
-
+            const container = document.getElementById("messages"); // Mova para cá (primeira linha)
             const maxMessages = 100;
 
+            // Agora o container já existe e você pode verificar o tamanho
             while (container.children.length >= maxMessages) {
                 container.removeChild(container.firstChild);
             }
 
-            const container =
-                document.getElementById("messages");
-
-            const div =
-                document.createElement("div");
-
+            const div = document.createElement("div");
             div.className = "message";
 
             if (data.id) {
@@ -1155,13 +1151,6 @@ ${window.isAdmin ? `
                 list.appendChild(div);
             });
         });
-
-        function changeRoom(e, room) {
-            currentRoom = room;
-            document.querySelectorAll(".channel-btn").forEach(b => b.classList.remove("active-room"));
-            e.target.classList.add("active-room");
-            socket.emit("switch_room", room);
-        }
 
         function muteUser(target) { socket.emit("mute_user", { admin: currentUser, target }); }
         function unmuteUser(target) { socket.emit("unmute_user", { admin: currentUser, target }); }
