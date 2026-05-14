@@ -430,6 +430,43 @@
         .btn-ban {
             background: #ed4245;
         }
+
+        /* Container de mensagens padrão */
+        .message {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            max-width: 80%;
+            /* Evita que a mensagem ocupe a tela toda */
+            padding: 8px;
+            border-radius: 8px;
+        }
+
+        /* Mensagem enviada por MIM (Direita) */
+        .message.sent {
+            align-self: flex-end;
+            /* Alinha o bloco todo à direita */
+            flex-direction: row-reverse;
+            /* Inverte a ordem: texto depois avatar */
+            text-align: right;
+            background-color: rgba(88, 101, 242, 0.1);
+            /* Um tom de azul bem leve */
+            margin-left: auto;
+        }
+
+        /* Mensagem enviada por OUTROS (Esquerda) */
+        .message.received {
+            align-self: flex-start;
+            background-color: rgba(255, 255, 255, 0.05);
+            margin-right: auto;
+        }
+
+        /* Garante que o container de mensagens use flexbox para alinhar os itens */
+        #messages {
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
     </style>
 </head>
 
@@ -793,82 +830,47 @@
         // UI MESSAGE
 
         function addMessageToUI(data) {
-            const container = document.getElementById("messages"); // Mova para cá (primeira linha)
+            const container = document.getElementById("messages");
             const maxMessages = 100;
 
-            // Agora o container já existe e você pode verificar o tamanho
+            if (!container) return;
+
             while (container.children.length >= maxMessages) {
                 container.removeChild(container.firstChild);
             }
 
             const div = document.createElement("div");
-            div.className = "message";
+
+            // VERIFICAÇÃO INDIVIDUAL:
+            // Se o autor da mensagem (data.user) for igual ao usuário logado (currentUser)
+            const isMe = (data.user === currentUser);
+
+            // Aplica a classe 'message' e a classe de posição (sent ou received)
+            div.className = `message ${isMe ? 'sent' : 'received'}`;
 
             if (data.id) {
                 div.id = `msg-${data.id}`;
             }
 
-            const avatar =
-                data.avatar || "/uploads/default-avatar.png";
-
-            const username =
-                data.user || "Usuário";
-
-            const text =
-                data.text || "";
+            const avatar = data.avatar || "/uploads/default-avatar.png";
+            const username = data.user || "Usuário";
+            const text = data.text || "";
 
             div.innerHTML = `
-        <img src="${avatar}"
-             class="msg-avatar">
-
+        <img src="${avatar}" class="msg-avatar">
         <div class="msg-content">
-
-            <span class="msg-author">
-                ${username}
-            </span>
-
-            <span class="msg-text">
-                ${text}
-            </span>
-
-            ${data.image_url
-                    ? `
-                <img
-                    src="${data.image_url}"
-                    class="chat-img"
-                    style="
-                        max-width:250px;
-                        border-radius:10px;
-                        margin-top:5px;
-                    ">
-                `
-                    : ""
-                }
-
-            ${(window.isAdmin || username === currentUser) && data.id
-                    ? `
-                <button
-                    onclick="deleteMessage(${data.id})"
-                    style="
-                        margin-top:5px;
-                        background:#ed4245;
-                        border:none;
-                        color:white;
-                        padding:5px 10px;
-                        border-radius:5px;
-                        cursor:pointer;
-                    ">
+            <span class="msg-author">${isMe ? 'Você' : username}</span>
+            <span class="msg-text">${text}</span>
+            ${data.image_url ? `<img src="${data.image_url}" class="chat-img" style="max-width:250px; border-radius:10px; margin-top:5px;">` : ""}
+            ${(window.isAdmin || isMe) && data.id ? `
+                <button onclick="deleteMessage(${data.id})" style="margin-top:5px; background:#ed4245; border:none; color:white; padding:3px 8px; border-radius:5px; cursor:pointer; font-size:10px;">
                     Apagar
                 </button>
-                `
-                    : ""
-                }
-
+            ` : ""}
         </div>
     `;
 
             container.appendChild(div);
-
             container.scrollTop = container.scrollHeight;
         }
 
