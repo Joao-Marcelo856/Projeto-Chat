@@ -358,32 +358,39 @@ io.on("connection", (socket) => {
 
   // DELETE MESSAGE
 
+  // DELETE MESSAGE - Versão corrigida (Admin ou Dono)
   socket.on("delete_message", (data) => {
+    // 1. Primeiro, buscamos a mensagem no banco para saber quem é o autor
     db.get(
-      `
-      SELECT isAdmin
-      FROM users
-      WHERE username = ?
-      `,
-      [data.admin],
+      "SELECT user FROM messages WHERE id = ?",
+      [data.messageId],
+      (err, msgRow) => {
+        if (err || !msgRow) return;
 
-      (err, row) => {
-        if (err || !row) return;
+        // 2. Agora verificamos se quem pediu é Admin OU se é o autor da mensagem
+        db.get(
+          "SELECT isAdmin FROM users WHERE username = ?",
+          [data.admin],
+          (err, userRow) => {
+            if (err || !userRow) return;
 
-        if (row.isAdmin !== 1) return;
+            const isAuthor = (msgRow.user === data.admin);
+            const isAdmin = (userRow.isAdmin === 1);
 
-        db.run(
-          `
-          DELETE FROM messages
-          WHERE id = ?
-          `,
-          [data.messageId],
-
-          () => {
-            io.emit("message_deleted", data.messageId);
-          },
+            if (isAuthor || isAdmin) {
+              db.run(
+                "DELETE FROM messages WHERE id = ?",
+                [data.messageId],
+                () => {
+                  io.emit("message_deleted", data.messageId);
+                }
+              );
+            } else {
+              socket.emit("auth_error", "Você não tem permissão para apagar esta mensagem.");
+            }
+          }
         );
-      },
+      }
     );
   });
 
