@@ -267,7 +267,8 @@ io.on("connection", (socket) => {
     SELECT *
     FROM messages
     WHERE room = ?
-    ORDER BY timestamp ASC
+    ORDER BY timestamp DESC
+    LIMIT 50
     `,
       [newRoom],
 
@@ -276,6 +277,8 @@ io.on("connection", (socket) => {
           console.error(err);
           return;
         }
+
+        rows.reverse();
 
         socket.emit("load_history", rows);
       },

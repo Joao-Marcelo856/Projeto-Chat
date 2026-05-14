@@ -794,6 +794,12 @@
 
         function addMessageToUI(data) {
 
+            const maxMessages = 100;
+
+            while (container.children.length >= maxMessages) {
+                container.removeChild(container.firstChild);
+            }
+
             const container =
                 document.getElementById("messages");
 
