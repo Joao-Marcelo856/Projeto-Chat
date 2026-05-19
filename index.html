@@ -528,6 +528,12 @@
             # ajuda
         </div>
 
+        <div class="sidebar-header">
+            Mensagens Diretas
+        </div>
+
+        <div id="dm-list"></div>
+
         <div style="margin-top:auto;" class="settings-footer">
 
             <div style="display:flex;align-items:center;gap:8px;">
@@ -755,7 +761,14 @@
 
         // DM
 
+        let privateChats = [];
+
         function openDM(targetUser) {
+
+            const username =
+                typeof targetUser === "object"
+                    ? targetUser.username
+                    : targetUser;
 
             if (targetUser === currentUser) return;
 
@@ -769,6 +782,12 @@
             document.getElementById("messages").innerHTML = "";
 
             socket.emit("switch_room", room);
+
+            if (!privateChats.includes(targetUser)) {
+                privateChats.push(targetUser);
+
+                renderPrivateChats();
+            }
 
             updateHeader(targetUser, true);
         }
@@ -1165,6 +1184,57 @@ ${window.isAdmin ? `
             localStorage.clear();
             location.reload();
         }
+
+        function renderPrivateChats() {
+
+            const dmList =
+                document.getElementById("dm-list");
+
+            dmList.innerHTML = "";
+
+            privateChats.forEach(user => {
+
+                const div =
+                    document.createElement("div");
+
+                div.className = "channel-btn";
+
+                div.innerHTML = `
+    <div style="
+        display:flex;
+        align-items:center;
+        gap:8px;
+    ">
+        <img
+            src="${user.avatar || '/uploads/default-avatar.png'}"
+            style="
+                width:32px;
+                height:32px;
+                border-radius:50%;
+                object-fit:cover;
+            "
+        >
+
+        <span>
+            ${user}
+        </span>
+    </div>
+`;
+
+                div.onclick = () => openDM(user.username);
+
+                dmList.appendChild(div);
+            });
+        }
+        localStorage.setItem(
+            "privateChats",
+            JSON.stringify(privateChats)
+        );
+
+        privateChats =
+            JSON.parse(localStorage.getItem("privateChats")) || [];
+
+        renderPrivateChats();
     </script>
 </body>
 
