@@ -222,28 +222,59 @@ function renderPrivateChats() {
   });
 }
 
-document.getElementById("message-input").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    const text = e.target.value.trim();
-    if (!text) return;
+// SUBSTITUA APENAS O SEU EVENTO "KEYDOWN" POR ESTE (FUSÃO PERFEITA):
+document
+  .getElementById("message-input")
+  .addEventListener("keydown", async (e) => {
+    if (e.key === "Enter") {
+      const text = e.target.value.trim();
 
-    // Envia a mensagem incluindo os dados da resposta (se houver)
-    socket.emit("chat message", {
-      room: currentRoom,
-      user: currentUser,
-      avatar: currentAvatar,
-      text,
-      reply_to_id: replyingTo,
-      reply_to_id: replyingTo ? replyingTo.id : null,
-      reply_user: replyingTo ? replyingTo.user : null,
-      reply_text: replyingTo ? replyingTo.text : null,
-    });
+      // ALTERAÇÃO: Agora aceita enviar se houver texto OU se houver uma imagem no preview
+      if (!text && !selectedChatFile) return;
 
-    e.target.value = "";
-    replyingTo = null; // <-- Limpa a variável para a próxima mensagem
-    cancelReply(); // Fecha a barra cinza de preview após enviar
-  }
-});
+      let imageUrl = null;
+
+      // Se o utilizador escolheu uma foto, faz o upload em background primeiro
+      if (selectedChatFile) {
+        try {
+          const formData = new FormData();
+          formData.append("image", selectedChatFile);
+
+          const res = await fetch("/upload", {
+            method: "POST",
+            body: formData,
+          });
+
+          const uploadData = await res.json();
+          imageUrl = uploadData.url; // Guarda o link gerado pelo servidor
+        } catch (err) {
+          console.error("Erro ao fazer upload da imagem:", err);
+          alert(
+            "Houve uma falha ao processar a imagem. Tente enviar novamente.",
+          );
+          return;
+        }
+      }
+
+      // MANTÉM TODA A TUA ESTRUTURA ORIGINAL INTACTA + A PROPRIEDADE IMAGE_URL
+      socket.emit("chat message", {
+        room: currentRoom,
+        user: currentUser,
+        avatar: currentAvatar,
+        text: text || "", // Permite string vazia caso envie apenas a foto
+        image_url: imageUrl, // <-- Nova propriedade adicionada dinamicamente
+        reply_to_id: replyingTo ? replyingTo.id : null,
+        reply_user: replyingTo ? replyingTo.user : null,
+        reply_text: replyingTo ? replyingTo.text : null,
+      });
+
+      // Mantém as tuas limpezas originais e adiciona a limpeza do preview da foto
+      e.target.value = "";
+      replyingTo = null;
+      cancelReply(); // Fecha a barra cinza de citação do teu sistema
+      clearChatImagePreview(); // <-- Limpa a miniatura da foto para a próxima mensagem
+    }
+  });
 
 socket.on("ai_response", (data) => {
   addMessage({
@@ -1029,3 +1060,37 @@ socket.on("user_behavior_logs_response", (data) => {
 
   toggleModal("behavior-details-modal", true);
 });
+
+// Variável global para armazenar temporariamente o arquivo selecionado no chat
+let selectedChatFile = null;
+
+// Evento que detecta quando o usuário escolhe uma imagem ou GIF
+document.getElementById("file-image").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  selectedChatFile = file;
+
+  // Ler o arquivo localmente para gerar a miniatura (Preview)
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const previewContainer = document.getElementById("chat-preview-container");
+    const previewImg = document.getElementById("chat-preview-img");
+
+    if (previewContainer && previewImg) {
+      previewImg.src = event.target.result;
+      previewContainer.style.display = "flex"; // Mostra a barra de preview
+    }
+  };
+  reader.readAsDataURL(file);
+});
+
+// Função para cancelar/remover o preview da imagem
+function clearChatImagePreview() {
+  selectedChatFile = null;
+  document.getElementById("file-image").value = ""; // Reseta o input file
+  const previewContainer = document.getElementById("chat-preview-container");
+  if (previewContainer) {
+    previewContainer.style.display = "none";
+  }
+}

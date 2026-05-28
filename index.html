@@ -164,15 +164,29 @@
                 <button class="cancel-reply-btn" onclick="cancelReply()">✕</button>
             </div>
 
-            <div class="input-area">
+            <div id="chat-preview-container"
+                style="display: none; position: relative; background: #2f3136; padding: 10px; border-radius: 8px 8px 0 0; align-items: center; gap: 10px;">
+                <div style="position: relative; display: inline-block;">
+                    <img id="chat-preview-img" src="" style="max-height: 80px; border-radius: 4px; object-fit: cover;">
+                    <button onclick="clearChatImagePreview()"
+                        style="position: absolute; top: -5px; right: -5px; background: #ed4245; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; font-weight: bold;">✕</button>
+                </div>
+                <span style="color: #b9bbbe; font-size: 0.85rem;">Imagem selecionada para envio...</span>
+            </div>
 
-                <input type="file" id="file-image" accept="image/*" style="display:none;" onchange="sendPhoto()">
+            <div class="message-bar-container">
 
-                <button class="attach-btn" onclick="document.getElementById('file-image').click()">
-                    +
-                </button>
+                <div class="input-area">
 
-                <input type="text" id="message-input" placeholder="Conversar...">
+                    <input type="file" id="file-image" accept="image/*" style="display:none;" onchange="sendPhoto()">
+
+                    <button class="attach-btn" onclick="document.getElementById('file-image').click()">
+                        +
+                    </button>
+
+                    <input type="text" id="message-input" placeholder="Conversar...">
+
+                </div>
 
             </div>
 
@@ -194,7 +208,8 @@
     <!-- ADICIONAR AS JANELAS -->
     <div id="monitor-modal" class="modal" style="display:none; z-index: 1000;">
         <div class="modal-box" style="max-width: 450px; background: #2f3136; color: #fff;">
-            <h3 style="margin-bottom: 15px; display:flex; align-items:center; gap:8px;">👁️ Alvos Sob Observação da IA
+            <h3 style="margin-bottom: 15px; display:flex; align-items:center; gap:8px;">👁️ Alvos Sob Observação da
+                IA
             </h3>
             <div id="monitor-list-content"
                 style="max-height: 300px; overflow-y: auto; margin-bottom: 20px; display:flex; flex-direction:column; gap:10px;">
