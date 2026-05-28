@@ -127,6 +127,11 @@
         <!-- SEARCH -->
         <div class="search-wrapper">
 
+            <button id="admin-monitor-btn" class="search-icon-btn admin-only-view"
+                style="display: none; margin-right: 5px;" onclick="toggleMonitorPanel()">
+                👁️
+            </button>
+
             <button id="search-toggle-btn" class="search-icon-btn">
                 🔍
             </button>
@@ -184,6 +189,31 @@
 
         <div id="user-list"></div>
 
+    </div>
+
+    <!-- ADICIONAR AS JANELAS -->
+    <div id="monitor-modal" class="modal" style="display:none; z-index: 1000;">
+        <div class="modal-box" style="max-width: 450px; background: #2f3136; color: #fff;">
+            <h3 style="margin-bottom: 15px; display:flex; align-items:center; gap:8px;">👁️ Alvos Sob Observação da IA
+            </h3>
+            <div id="monitor-list-content"
+                style="max-height: 300px; overflow-y: auto; margin-bottom: 20px; display:flex; flex-direction:column; gap:10px;">
+            </div>
+            <button class="btn" onclick="toggleModal('monitor-modal', false)">Fechar</button>
+        </div>
+    </div>
+
+    <div id="behavior-details-modal" class="modal" style="display:none; z-index: 1001;">
+        <div class="modal-box"
+            style="max-width: 600px; width: 90%; background: #36393f; max-height: 85vh; display: flex; flex-direction: column;">
+            <h3 id="behavior-title-name" style="margin-bottom: 10px; color: #fff;">📋 Ficha de Acompanhamento</h3>
+
+            <div id="behavior-timeline"
+                style="flex: 1; overflow-y: auto; background: #202225; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 15px;">
+            </div>
+
+            <button class="btn" onclick="toggleModal('behavior-details-modal', false)">Voltar ao Painel</button>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

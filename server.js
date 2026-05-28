@@ -78,6 +78,24 @@ db.serialize(() => {
             receiver TEXT
         )
       `);
+  db.run(`
+    CREATE TABLE IF NOT EXISTS monitored_users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+`);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS behavior_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT,
+        text TEXT,
+        severity TEXT, -- LEVE, MÉDIO, GRAVE
+        reason TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+`);
 });
 
 app.use(express.static(__dirname));
@@ -230,6 +248,171 @@ io.on("connection", (socket) => {
 
   socket.on("chat message", (data) => {
     if (!data.text) return;
+
+    // 1. Verificar se é o comando de Administrador /observar
+    if (data.text.trim().startsWith("/observar ")) {
+      db.get(
+        "SELECT isAdmin FROM users WHERE username = ?",
+        [data.user],
+        (err, userRow) => {
+          if (!err && userRow && userRow.isAdmin === 1) {
+            const targetUser = data.text
+              .replace("/observar ", "")
+              .trim()
+              .replace("@", "");
+
+            db.run(
+              "INSERT OR IGNORE INTO monitored_users (username) VALUES (?)",
+              [targetUser],
+              function () {
+                socket.emit(
+                  "auth_error",
+                  `👁️ Sistema ativado! A IA agora está observando e anotando tudo de @${targetUser}.`,
+                );
+
+                // Notifica painel se houver mudanca
+                db.all(
+                  "SELECT * FROM monitored_users ORDER BY id DESC",
+                  [],
+                  (err, rows) => {
+                    socket.emit("monitored_list_response", rows || []);
+                  },
+                );
+              },
+            );
+          } else {
+            socket.emit(
+              "auth_error",
+              "Apenas administradores podem usar o comando /observar.",
+            );
+          }
+        },
+      );
+      return; // Para a execução para não vazar o comando no chat público
+    }
+
+    // ==========================================
+    // LÓGICA INVISÍVEL: MONITORAMENTO COM SUPORTE A FOTOS E LINKS
+    // ==========================================
+    db.get(
+      "SELECT 1 FROM monitored_users WHERE username = ?",
+      [data.user],
+      (err, isMonitored) => {
+        if (!err && isMonitored) {
+          // Se o usuário mandou um link de imagem ou fez upload de foto, anexamos isso no contexto para a IA
+          let conteudoParaAI = data.text || "";
+          if (data.image_url) {
+            conteudoParaAI += ` [O usuário também anexou uma imagem/foto nesta mensagem. URL da imagem: ${data.image_url}]`;
+          }
+
+          // Se a mensagem estiver completamente vazia (só a foto, sem texto), damos um aviso descritivo à IA
+          if (!data.text && data.image_url) {
+            conteudoParaAI =
+              "[O usuário enviou apenas uma foto/imagem no chat]";
+          }
+
+          openai.chat.completions
+            .create({
+              model: "google/gemini-2.5-flash",
+              max_tokens: 150,
+              messages: [
+                {
+                  role: "system",
+                  content: `Você é um psicólogo comportamental e moderador invisível de um chat.
+          Analise o comportamento da mensagem do usuário suspeito (fique atento a links suspeitos, preconceito ou envio inadequado de mídias) e classifique rigorosamente a gravidade do tom.
+          Sua resposta DEVE ser estritamente em formato JSON válido com duas chaves obrigatórias:
+          {
+            "severity": "LEVE" ou "MÉDIO" ou "GRAVE",
+            "reason": "Uma breve explicação detalhada do motivo de ter classificado assim"
+          }`,
+                },
+                { role: "user", content: conteudoParaAI },
+              ],
+              response_format: { type: "json_object" },
+            })
+            .then((aiResponse) => {
+              try {
+                const result = JSON.parse(
+                  aiResponse.choices[0].message.content,
+                );
+
+                // Se houver uma imagem, nós a concatenamos discretamente ou guardamos o texto original
+                // Para que o admin possa clicar na foto pela ficha, guardamos o texto com a URL estruturada
+                let textoSalvo = data.text || "";
+                if (data.image_url) {
+                  textoSalvo += `\n🖼️ [Foto Anexada]: ${data.image_url}`;
+                }
+
+                db.run(
+                  "INSERT INTO behavior_logs (username, text, severity, reason) VALUES (?, ?, ?, ?)",
+                  [
+                    data.user,
+                    textoSalvo,
+                    result.severity.toUpperCase(),
+                    result.reason,
+                  ],
+                );
+              } catch (e) {
+                console.error("Erro ao processar JSON da IA Observadora:", e);
+              }
+            })
+            .catch((aiErr) =>
+              console.error("Falha no Gemini Observador:", aiErr),
+            );
+        }
+      },
+    );
+
+    // 2. Lógica Invisível: Analisar se o autor da mensagem está na lista negra de observação
+    db.get(
+      "SELECT 1 FROM monitored_users WHERE username = ?",
+      [data.user],
+      (err, isMonitored) => {
+        if (!err && isMonitored) {
+          // A IA analisa a fundo em background sem ninguém saber
+          openai.chat.completions
+            .create({
+              model: "google/gemini-2.5-flash",
+              max_tokens: 150,
+              messages: [
+                {
+                  role: "system",
+                  content: `Você é um psicólogo comportamental e moderador invisível de um chat.
+          Analise o comportamento da mensagem do usuário suspeito e classifique rigorosamente a gravidade do tom (ofensas disfarçadas, provocações, toxicidade, passivo-agressividade ou quebra de regras).
+          Sua resposta DEVE ser estritamente em formato JSON válido com duas chaves obrigatórias:
+          {
+            "severity": "LEVE" ou "MÉDIO" ou "GRAVE",
+            "reason": "Uma breve explicação detalhada do motivo de ter classificado assim"
+          }`,
+                },
+                { role: "user", content: data.text },
+              ],
+              response_format: { type: "json_object" }, // Obriga o retorno ser JSON limpo
+            })
+            .then((aiResponse) => {
+              try {
+                const result = JSON.parse(
+                  aiResponse.choices[0].message.content,
+                );
+                db.run(
+                  "INSERT INTO behavior_logs (username, text, severity, reason) VALUES (?, ?, ?, ?)",
+                  [
+                    data.user,
+                    data.text,
+                    result.severity.toUpperCase(),
+                    result.reason,
+                  ],
+                );
+              } catch (e) {
+                console.error("Erro ao processar JSON da IA Observadora:", e);
+              }
+            })
+            .catch((aiErr) =>
+              console.error("Falha no Gemini Observador:", aiErr),
+            );
+        }
+      },
+    );
 
     // 1. ANÁLISE DE MODERAÇÃO SEGRETA
     async function verificarModeracao() {
@@ -735,6 +918,72 @@ io.on("connection", (socket) => {
           id: data.messageId,
           pinned: 0,
         });
+      },
+    );
+  });
+  // Evento para o Admin listar quem está sendo monitorado
+  socket.on("get_monitored_list", (data) => {
+    db.get(
+      "SELECT isAdmin FROM users WHERE username = ?",
+      [data.admin],
+      (err, row) => {
+        if (!err && row && row.isAdmin === 1) {
+          db.all(
+            "SELECT * FROM monitored_users ORDER BY id DESC",
+            [],
+            (err, rows) => {
+              socket.emit("monitored_list_response", rows || []);
+            },
+          );
+        }
+      },
+    );
+  });
+
+  // Evento para remover um usuário do monitoramento
+  socket.on("unmonitor_user", (data) => {
+    db.get(
+      "SELECT isAdmin FROM users WHERE username = ?",
+      [data.admin],
+      (err, row) => {
+        if (!err && row && row.isAdmin === 1) {
+          db.run(
+            "DELETE FROM monitored_users WHERE username = ?",
+            [data.target],
+            () => {
+              // Atualiza a lista para o admin imediatamente
+              db.all(
+                "SELECT * FROM monitored_users ORDER BY id DESC",
+                [],
+                (err, rows) => {
+                  socket.emit("monitored_list_response", rows || []);
+                },
+              );
+            },
+          );
+        }
+      },
+    );
+  });
+
+  // Evento para carregar a ficha criminal/histórico formatado do usuário monitorado
+  socket.on("get_user_behavior_logs", (data) => {
+    db.get(
+      "SELECT isAdmin FROM users WHERE username = ?",
+      [data.admin],
+      (err, row) => {
+        if (!err && row && row.isAdmin === 1) {
+          db.all(
+            "SELECT *, strftime('%d/%m/%Y', timestamp) as date_group FROM behavior_logs WHERE username = ? ORDER BY id ASC",
+            [data.target],
+            (err, rows) => {
+              socket.emit("user_behavior_logs_response", {
+                target: data.target,
+                logs: rows || [],
+              });
+            },
+          );
+        }
       },
     );
   });

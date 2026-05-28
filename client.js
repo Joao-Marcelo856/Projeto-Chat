@@ -107,6 +107,11 @@ socket.on("auth_success", (data) => {
 
   socket.emit("get_users");
 
+  if (data.isAdmin === 1) {
+    const eyeBtn = document.getElementById("admin-monitor-btn");
+    if (eyeBtn) eyeBtn.style.display = "block";
+  }
+
   if (data.isAdmin) {
     document.getElementById("admin-channel").classList.remove("hidden");
   }
@@ -931,3 +936,96 @@ function cancelReply() {
   replyingTo = null;
   document.getElementById("reply-preview-box").style.display = "none";
 }
+
+// Abrir/Fechar Painel Principal
+function toggleMonitorPanel() {
+  const modal = document.getElementById("monitor-modal");
+  if (modal.style.display === "none" || modal.style.display === "") {
+    modal.style.display = "flex";
+    socket.emit("get_monitored_list", { admin: currentUser });
+  } else {
+    modal.style.display = "none";
+  }
+}
+
+// Receber a lista de monitorados do Servidor e montar os botões de ação
+socket.on("monitored_list_response", (users) => {
+  const container = document.getElementById("monitor-list-content");
+  container.innerHTML = "";
+
+  if (users.length === 0) {
+    container.innerHTML = `<p style="color: #72767d; text-align: center; font-size: 0.9rem; padding: 10px;">Nenhum usuário sob investigação no momento.</p>`;
+    return;
+  }
+
+  users.forEach((u) => {
+    const div = document.createElement("div");
+    div.className = "monitor-row";
+    div.innerHTML = `
+      <span style="font-weight: bold; color: #fff;">@${u.username}</span>
+      <div style="display:flex; gap: 6px;">
+         <button class="btn" style="background:#5865F2; padding: 5px 10px; font-size:0.8rem;" onclick="viewUserLogs('${u.username}')">📋 Ficha</button>
+         <button class="btn" style="background:#ed4245; padding: 5px 10px; font-size:0.8rem;" onclick="stopMonitoring('${u.username}')">❌ Parar</button>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+});
+
+// Ações disparadas pelos botões do painel
+function stopMonitoring(targetUser) {
+  if (confirm(`Remover @${targetUser} do monitoramento rigoroso?`)) {
+    socket.emit("unmonitor_user", { admin: currentUser, target: targetUser });
+  }
+}
+
+function viewUserLogs(targetUser) {
+  socket.emit("get_user_behavior_logs", {
+    admin: currentUser,
+    target: targetUser,
+  });
+}
+
+// Receber os registros minuciosos da IA e organizar por Linha do Tempo (Estilo WhatsApp)
+socket.on("user_behavior_logs_response", (data) => {
+  document.getElementById("behavior-title-name").innerText =
+    `📋 Histórico e Notas da IA: @${data.target}`;
+  const timeline = document.getElementById("behavior-timeline");
+  timeline.innerHTML = "";
+
+  if (data.logs.length === 0) {
+    timeline.innerHTML = `<p style="color:#72767d; text-align:center; padding:20px;">Nenhuma mensagem capturada ou analisada ainda.</p>`;
+    toggleModal("behavior-details-modal", true);
+    return;
+  }
+
+  let lastDateGroup = "";
+
+  data.logs.forEach((log) => {
+    // Divisor de dia/mês/ano estilo WhatsApp
+    if (log.date_group !== lastDateGroup) {
+      lastDateGroup = log.date_group;
+      const dateDivider = document.createElement("div");
+      dateDivider.className = "timeline-date-divider";
+      dateDivider.innerHTML = `<span>${log.date_group}</span>`;
+      timeline.appendChild(dateDivider);
+    }
+
+    // Caixa da mensagem analisada com a cor baseada na infração
+    const item = document.createElement("div");
+    item.className = `log-item-box border-${log.severity}`;
+    item.innerHTML = `
+      <div style="display:flex; justify-content:space-between; margin-bottom: 5px; align-items: center;">
+         <span style="color:#fff; font-size:0.85rem; font-weight:bold;">Mensagem capturada:</span>
+         <span class="severity-badge severity-${log.severity}">${log.severity}</span>
+      </div>
+      <p style="color:#dcddde; font-size:0.95rem; background:#202225; padding:8px; border-radius:4px; margin-bottom:6px;">"${log.text}"</p>
+      <div style="font-size:0.78rem; color:#b9bbbe;">
+         <strong style="color:#faa61a;">🕵️ Nota da IA:</strong> ${log.reason}
+      </div>
+    `;
+    timeline.appendChild(item);
+  });
+
+  toggleModal("behavior-details-modal", true);
+});
