@@ -106,6 +106,8 @@
     <!-- CHAT -->
     <div class="chat-area">
 
+        
+
         <div class="chat-header">
 
             <button class="toggle-sidebar-btn" onclick="toggleLeftSidebar()">
@@ -115,6 +117,9 @@
             <button class="toggle-users-btn" onclick="toggleRightSidebar()">
                 👥
             </button>
+
+            <button id="btn-audio-call" class="btn-call" onclick="openInviteModal('audio')">📞 Ligar</button>
+            <button id="btn-video-call" class="btn-call video" onclick="openInviteModal('video')">📹 Vídeo</button>
 
             <span id="header-icon" class="header-icon">#</span>
 
@@ -228,6 +233,54 @@
             </div>
 
             <button class="btn" onclick="toggleModal('behavior-details-modal', false)">Voltar ao Painel</button>
+        </div>
+    </div>
+
+    <div id="call-invite-modal" class="modal" style="display:none;">
+        <div class="modal-box call-modal">
+            <h3>👥 Iniciar Chamada</h3>
+            <p>Selecione quem deseja convidar para a conferência:</p>
+
+            <input type="text" id="search-call-users" placeholder="🔍 Digite o nome do usuário..."
+                oninput="filterInviteUsers()">
+
+            <div id="invite-users-list" class="invite-users-container">
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeInviteModal()">Cancelar</button>
+                <button id="btn-start-call-trigger" class="btn btn-primary" onclick="initiateCallFlow()">Iniciar Chamada
+                    🚀</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="call-incoming-modal" class="modal" style="display:none;">
+        <div class="modal-box incoming-call-box">
+            <div class="incoming-animation">📞</div>
+            <h3 id="incoming-call-title">Chamada a Receber...</h3>
+            <p id="incoming-call-text">Alguém está a convidar-te para uma chamada.</p>
+            <div class="modal-footer row">
+                <button class="btn btn-danger" onclick="declineIncomingCall()">Recusar ❌</button>
+                <button class="btn btn-success" onclick="acceptIncomingCall()">Atender ✅</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="active-call-overlay" class="call-overlay" style="display:none;">
+        <div class="call-header">
+            <span id="call-status-title">🟢 Chamada em Grupo</span>
+        </div>
+
+        <div id="call-participants-grid" class="participants-grid">
+        </div>
+
+        <div class="call-controls-bar">
+            <button id="btn-toggle-mic" class="control-circle" onclick="toggleMicrophone()">🎙️</button>
+            <button id="btn-toggle-cam" class="control-circle" onclick="toggleCamera()">📹</button>
+            <button id="btn-share-screen" class="control-circle screen" onclick="toggleScreenShare()">🖥️ Transmitir
+                Tela</button>
+            <button class="control-circle hangup" onclick="hangUpCall()">❌</button>
         </div>
     </div>
 

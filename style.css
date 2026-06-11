@@ -1015,3 +1015,355 @@ body {
 .log-item-box.border-GRAVE {
     border-left-color: #ed4245;
 }
+
+/* DIVISOR DE DATA CRONOLÓGICO */
+.chat-date-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin: 20px 0 10px 0;
+    position: relative;
+    user-select: none;
+}
+
+/* A linha fina horizontal */
+.chat-date-divider::before {
+    content: "";
+    position: absolute;
+    left: 15px;
+    right: 15px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    /* Linha super discreta */
+    z-index: 1;
+}
+
+/* O balãozinho com o texto da data */
+.chat-date-divider span {
+    background: #36393f;
+    /* Ajuste para bater exatamente com o background da sua chat-area */
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #72767d;
+    /* Cinzento discreto fosco */
+    z-index: 2;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* PARTE 2: BARRA TEMPORÁRIA DE NOVAS MENSAGENS NO TOPO */
+.unread-messages-banner {
+    position: absolute;
+    top: 60px;
+    /* Ajuste dependendo da altura do header do seu chat */
+    left: 5%;
+    right: 5%;
+    background-color: #7289da;
+    /* Azul de destaque (estilo Discord) */
+    color: #ffffff;
+    text-align: center;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    border-radius: 8px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    transition: opacity 0.2rem ease-in-out;
+    user-select: none;
+}
+
+/* PARTE 3: BOLINHAS NOTIFICADORAS DE CONTADOR (BADGE) */
+.unread-badge {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-color: #f04747;
+    /* Vermelho vivo de alerta */
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: bold;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    animation: badgePop 0.2s ease-out;
+}
+
+/* Animação discreta de surgimento da bolinha */
+@keyframes badgePop {
+    0% {
+        transform: translateY(-50%) scale(0.5);
+    }
+
+    100% {
+        transform: translateY(-50%) scale(1);
+    }
+}
+
+/* Botões do Topo */
+.chat-call-actions {
+    background: rgba(255, 255, 255, 0.08);
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.btn-call {
+    background: #248046;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.btn-call.video {
+    background: #5865F2;
+}
+
+/* Modal customizado de convites */
+.invite-users-container {
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 15px 0;
+    background: #2f3136;
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.invite-user-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px;
+    border-radius: 4px;
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.invite-user-item:hover {
+    background: #393c43;
+}
+
+.invite-user-item.selected {
+    background: rgba(88, 101, 242, 0.2);
+    border: 1px solid #5865F2;
+}
+
+/* Interface de Chamada Ativa (Overlay Total estilo Discord) */
+.call-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #111214;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    color: white;
+}
+
+.call-header {
+    padding: 15px;
+    background: #1e1f22;
+    font-weight: bold;
+    text-align: center;
+}
+
+/* ==========================================================================
+   SISTEMA DE CHAMADAS OTIMIZADO (ESTILO DISCORD)
+   ========================================================================== */
+
+.participants-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    padding: 24px;
+    align-content: center;
+    justify-content: center;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Card base do participante */
+.participant-card {
+    background: #2b2d31;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid transparent;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+    /* Mantém a proporção 16:9 perfeita em telas de qualquer tamanho */
+    aspect-ratio: 16 / 8;
+    width: 100%;
+}
+
+/* 🟢 SITUAÇÃO 1: QUANDO FOR CHAMADA DE VÍDEO ATIVA */
+.participant-card video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Faz o rosto preencher o espaço sem achatar */
+    background: #000;
+    z-index: 1;
+}
+
+/* 🔊 SITUAÇÃO 2: QUANDO FOR APENAS VOZ */
+.participant-card.audio-mode {
+    background: #1e1f22 !important;
+}
+
+.participant-card.audio-mode .participant-avatar-view {
+    width: 90px !important;
+    height: 90px !important;
+    border-radius: 50% !important;
+    object-fit: cover !important;
+    border: 2px solid #4e5058;
+    z-index: 2;
+    display: block !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    margin-bottom: 0px !important;
+    /* Remove desalinhamento */
+}
+
+/* Se estiver em modo áudio, garante que o elemento de vídeo suma totalmente */
+.participant-card.audio-mode video {
+    display: none !important;
+}
+
+/* Alinhamento do nome flutuante */
+.participant-name {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    background: rgba(17, 18, 20, 0.75);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    z-index: 10;
+    pointer-events: none;
+}
+
+/* Brilho verde quando o usuário estiver falando */
+.participant-card.speaking {
+    border-color: #23a55a !important;
+    box-shadow: 0 0 16px rgba(35, 165, 90, 0.6) !important;
+}
+
+/* Painel de controles inferior */
+.call-controls-bar {
+    height: 80px;
+    background: #1e1f22;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+}
+
+.control-circle {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #4e5058;
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+}
+
+.control-circle:hover {
+    background: #6d6f78;
+}
+
+.control-circle.off {
+    background: #da373c;
+}
+
+.control-circle.hangup {
+    background: #da373c;
+}
+
+.control-circle.hangup:hover {
+    background: #a92b2f;
+}
+
+.control-circle.screen {
+    border-radius: 20px;
+    width: auto;
+    padding: 0 15px;
+    font-size: 0.9rem;
+    font-weight: bold;
+}
+
+/* Forçar a sobreposição absoluta do modal de chamada */
+#incoming-call-modal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0, 0, 0, 0.75) !important;
+    /* Fundo escurecido */
+    display: none;
+    /* Será controlado pelo JS */
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 99999 !important;
+    /* Fica à frente de absolutamente tudo */
+}
+
+/* Customização da caixinha do convite */
+.incoming-call-box {
+    background: #2f3136 !important;
+    padding: 30px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+    text-align: center !important;
+    min-width: 320px !important;
+    animation: pulse-incoming 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-incoming {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.03);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}

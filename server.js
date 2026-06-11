@@ -109,6 +109,9 @@ app.post("/upload", upload.single("image"), (req, res) => {
 
 io.on("connection", (socket) => {
   socket.on("register", async (data) => {
+    onlineUsers[socket.id] = username;
+    console.log(`[SERVER] Usuário mapeado com sucesso: ${username} está no socket ${socket.id}`);
+
     const hash = await bcrypt.hash(data.password, 10);
 
     db.run(
@@ -134,6 +137,9 @@ io.on("connection", (socket) => {
     );
   });
 
+  // ==========================================
+  // LOGIN DE USUÁRIO (CORRIGIDO)
+  // ==========================================
   socket.on("login", (data) => {
     db.get(
       `
@@ -162,6 +168,7 @@ io.on("connection", (socket) => {
           return socket.emit("auth_error", "Senha incorreta");
         }
 
+        // Envia resposta de sucesso para o cliente
         socket.emit("auth_success", {
           username: row.username,
           avatar: row.avatar,
@@ -169,12 +176,40 @@ io.on("connection", (socket) => {
           isMuted: row.isMuted,
         });
 
+        // Guarda o nome do usuário no socket e popula a lista online
         socket.username = row.username;
-
         onlineUsers[row.username] = socket.id;
+
+        console.log(`[SERVER] ${row.username} logou com sucesso. Mapeado no socket: ${socket.id}`);
+
+        // Atualiza as listas padrão do seu chat
         io.emit("refresh_users");
-        sendUsers(socket);
-      },
+        if (typeof sendUsers === "function") {
+          sendUsers(socket);
+        }
+
+        // ==========================================================
+        // PROCESSO DE ENTRAR NAS SALAS ANTIGAS (AGORA 100% PROTEGIDO)
+        // ==========================================================
+        db.all(
+          "SELECT room_id FROM room_participants WHERE username = ?",
+          [row.username],
+          (err, rows) => {
+            // CORREÇÃO CRÍTICA: Só executa se rows for uma array válida e não nula
+            if (!err && rows && Array.isArray(rows)) {
+              rows.forEach((r) => {
+                if (r && r.room_id) {
+                  socket.join(r.room_id);
+                }
+              });
+              console.log(`[SERVER] ${row.username} reconectado em suas salas.`);
+            } else {
+              console.log(`[SERVER] Nenhuma sala prévia encontrada para ${row.username} ou erro evitado.`);
+            }
+          }
+        );
+
+      }
     );
   });
 
@@ -247,7 +282,12 @@ io.on("connection", (socket) => {
   }
 
   socket.on("chat message", (data) => {
-    if (!data.text) return;
+    // 🌟 CORREÇÃO DE SEGURANÇA: Garante que data.text é sempre uma string (mesmo que vazia ""), evitando quebras com .trim()
+    data.text = data.text || "";
+
+    // Só ignora se NÃO houver texto E NÃO houver URL de imagem
+    if (!data.text && !data.image_url) return;
+
 
     // 1. Verificar se é o comando de Administrador /observar
     if (data.text.trim().startsWith("/observar ")) {
@@ -300,15 +340,14 @@ io.on("connection", (socket) => {
       (err, isMonitored) => {
         if (!err && isMonitored) {
           // Se o usuário mandou um link de imagem ou fez upload de foto, anexamos isso no contexto para a IA
-          let conteudoParaAI = data.text || "";
+          let conteudoParaAI = data.text;
           if (data.image_url) {
             conteudoParaAI += ` [O usuário também anexou uma imagem/foto nesta mensagem. URL da imagem: ${data.image_url}]`;
           }
 
           // Se a mensagem estiver completamente vazia (só a foto, sem texto), damos um aviso descritivo à IA
           if (!data.text && data.image_url) {
-            conteudoParaAI =
-              "[O usuário enviou apenas uma foto/imagem no chat]";
+            conteudoParaAI = "[O usuário enviou apenas uma foto/imagem no chat]";
           }
 
           openai.chat.completions
@@ -337,8 +376,7 @@ io.on("connection", (socket) => {
                 );
 
                 // Se houver uma imagem, nós a concatenamos discretamente ou guardamos o texto original
-                // Para que o admin possa clicar na foto pela ficha, guardamos o texto com a URL estruturada
-                let textoSalvo = data.text || "";
+                let textoSalvo = data.text;
                 if (data.image_url) {
                   textoSalvo += `\n🖼️ [Foto Anexada]: ${data.image_url}`;
                 }
@@ -363,59 +401,13 @@ io.on("connection", (socket) => {
       },
     );
 
-    // 2. Lógica Invisível: Analisar se o autor da mensagem está na lista negra de observação
-    db.get(
-      "SELECT 1 FROM monitored_users WHERE username = ?",
-      [data.user],
-      (err, isMonitored) => {
-        if (!err && isMonitored) {
-          // A IA analisa a fundo em background sem ninguém saber
-          openai.chat.completions
-            .create({
-              model: "google/gemini-2.5-flash",
-              max_tokens: 150,
-              messages: [
-                {
-                  role: "system",
-                  content: `Você é um psicólogo comportamental e moderador invisível de um chat.
-          Analise o comportamento da mensagem do usuário suspeito e classifique rigorosamente a gravidade do tom (ofensas disfarçadas, provocações, toxicidade, passivo-agressividade ou quebra de regras).
-          Sua resposta DEVE ser estritamente em formato JSON válido com duas chaves obrigatórias:
-          {
-            "severity": "LEVE" ou "MÉDIO" ou "GRAVE",
-            "reason": "Uma breve explicação detalhada do motivo de ter classificado assim"
-          }`,
-                },
-                { role: "user", content: data.text },
-              ],
-              response_format: { type: "json_object" }, // Obriga o retorno ser JSON limpo
-            })
-            .then((aiResponse) => {
-              try {
-                const result = JSON.parse(
-                  aiResponse.choices[0].message.content,
-                );
-                db.run(
-                  "INSERT INTO behavior_logs (username, text, severity, reason) VALUES (?, ?, ?, ?)",
-                  [
-                    data.user,
-                    data.text,
-                    result.severity.toUpperCase(),
-                    result.reason,
-                  ],
-                );
-              } catch (e) {
-                console.error("Erro ao processar JSON da IA Observadora:", e);
-              }
-            })
-            .catch((aiErr) =>
-              console.error("Falha no Gemini Observador:", aiErr),
-            );
-        }
-      },
-    );
+    // [O segundo bloco duplicado de monitoramento que estava aqui foi removido com sucesso para evitar conflitos]
 
     // 1. ANÁLISE DE MODERAÇÃO SEGRETA
     async function verificarModeracao() {
+      // 🌟 CORREÇÃO: Se não houver texto (apenas imagem), ignora a moderação de texto para não quebrar a API da OpenAI
+      if (!data.text.trim()) return false;
+
       try {
         const moderacao = await openai.chat.completions.create({
           model: "google/gemini-2.5-flash",
@@ -465,14 +457,13 @@ io.on("connection", (socket) => {
     // Processamento principal da mensagem
     async function processarMensagem() {
       // =========================================================================
-      // CORRIGIDO: COMANDO /RELATORIO (Intercepta antes de salvar no banco)
+      // COMANDO /RELATORIO (Intercepta antes de salvar no banco)
       // =========================================================================
       if (data.text.trim() === "/relatorio") {
         db.all(
           `SELECT user, text FROM messages WHERE room = ? ORDER BY id DESC LIMIT 50`,
           [data.room],
           async (err, rows) => {
-            // <-- Sintaxe corrigida aqui!
             if (err || !rows || rows.length === 0) {
               socket.emit(
                 "auth_error",
@@ -508,7 +499,7 @@ io.on("connection", (socket) => {
                       Organize sua resposta com os seguintes tópicos (use markdown com emojis):
                       📊 **Resumo da Conversa**: (O que aconteceu em linhas gerais)
                       🗣️ **Principais Assuntos**: (Lista em tópicos dos temas discutidos)
-                      🔥 **Membros Mais Ativos**: (Quem mais interagiu)
+                      🔥 **Membros Mais Aticas**: (Quem mais interagiu)
                       🎭 **Clima Geral**: (Se o chat está amigável, focado, caótico, engraçado, etc)
                     `,
                   },
@@ -567,7 +558,7 @@ io.on("connection", (socket) => {
         [
           data.room,
           data.user,
-          data.text,
+          data.text, // 🌟 Agora garantido como string limpa pelo tratamento do topo do evento
           data.image_url || null,
           data.avatar,
           data.reply_to_id || null,
@@ -603,7 +594,7 @@ io.on("connection", (socket) => {
                 messages: [
                   {
                     role: "system",
-                    content: `Você é uma IA integrada em um chat estilo Discord. Responda de forma corta e amigável no canal #${data.room}.`,
+                    content: `Você é uma IA integrada em um chat estilo Discord. Responda de forma curta e amigável no canal #${data.room}.`,
                   },
                   { role: "user", content: prompt },
                 ],
@@ -837,6 +828,8 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    console.log(`[SERVER] Socket desconectado: ${socket.id}`);
+    delete onlineUsers[socket.id];
     for (const username in onlineUsers) {
       if (onlineUsers[username] === socket.id) {
         delete onlineUsers[username];
@@ -986,6 +979,69 @@ io.on("connection", (socket) => {
         }
       },
     );
+  });
+  // =========================================================================
+  // SISTEMA DE CHAMADAS EM GRUPO (AUDIO/VÍDEO/WEBRTC)
+  // =========================================================================
+
+  // 1. Encaminha o convite de chamada para múltiplos usuários
+  // Escuta o envio do emissor
+  socket.on("call-invite-payload", (data) => {
+    console.log("\n--- [SOCKET SERVER] ENCAMINHANDO CONVITE ---");
+    console.log("Dados da chamada:", data);
+
+    if (!data.targets || data.targets.length === 0) return;
+
+    data.targets.forEach(targetUsername => {
+      // Pega o ID do socket do convidado diretamente da lista online
+      const targetSocketId = onlineUsers[targetUsername];
+
+      if (targetSocketId) {
+        console.log(`[SERVER] Enviando janela de chamada para: ${targetUsername}`);
+
+        // Dispara o evento que o cliente do convidado está escutando
+        io.to(targetSocketId).emit("incoming-call", {
+          caller: data.caller,
+          room: data.room,
+          callType: data.callType || "video",
+          allTargets: data.targets
+        });
+      } else {
+        console.log(`[SERVER] Alvo ${targetUsername} não encontrado online.`);
+      }
+    });
+  });
+
+  // 2. Transmite respostas de aceite ou recusa
+  socket.on("call-response-signal", (data) => {
+    // data: { caller: "nome", responder: "nome", accepted: true/false, room: "sala" }
+    const callerSocketId = Object.keys(onlineUsers).find(key => onlineUsers[key] === data.caller);
+    if (callerSocketId) {
+      io.to(callerSocketId).emit("call-response-received", data);
+    }
+
+    // Se aceito, coloca o usuário em uma sala socket dedicada para a chamada de mídia
+    if (data.accepted) {
+      socket.join("call_" + data.room);
+    }
+  });
+
+  // 3. Roteamento de Sinalização WebRTC Mesh (Ofertas, Respostas e ICE Candidates)
+  socket.on("webrtc-signaling-mesh", (data) => {
+    // data: { to: "nomeTarget", from: "meuNome", signal: sdp/candidateData }
+    const targetSocketId = Object.keys(onlineUsers).find(key => onlineUsers[key] === data.to);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit("webrtc-signaling-mesh", {
+        from: data.from,
+        signal: data.signal
+      });
+    }
+  });
+
+  // 4. Avisar saída da chamada
+  socket.on("leave-call-room", (data) => {
+    socket.leave("call_" + data.room);
+    socket.to("call_" + data.room).emit("user-left-call", { user: data.user });
   });
 });
 

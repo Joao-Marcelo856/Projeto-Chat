@@ -1,3 +1,13 @@
+let incomingCallData = null;
+let localOnlineUsersCache = [];
+// CONTROLO DE NOTIFICAÇÕES E MENSAGENS NÃO LIDAS
+let currentRoomNewMessages = 0; // Mensagens não lidas na sala ATUAL
+
+// Solicita permissão para notificações nativas do sistema ao carregar a página
+if (window.Notification && Notification.permission !== "granted" && Notification.permission !== "denied") {
+  Notification.requestPermission();
+}
+let lastRenderedDate = null; // Controla o cabeçalho de data atual no ecrã
 const socket = io();
 const messagesDiv = document.getElementById("messages");
 
@@ -10,8 +20,8 @@ messagesDiv.addEventListener("scroll", () => {
 
   isUserAtBottom =
     messagesDiv.scrollHeight -
-      messagesDiv.scrollTop -
-      messagesDiv.clientHeight <
+    messagesDiv.scrollTop -
+    messagesDiv.clientHeight <
     threshold;
 
   // =========================
@@ -134,6 +144,8 @@ socket.on("auth_error", alert);
 
 function changeRoom(event, room) {
   currentRoom = room;
+  messagesDiv.innerHTML = "";
+  lastRenderedDate = null; // 🌟 Reset fundamental para recalcular na nova sala!
 
   document.getElementById("messages").innerHTML = "";
 
@@ -163,6 +175,7 @@ function openDM(targetUser) {
   currentRoom = room;
 
   document.getElementById("messages").innerHTML = "";
+  lastRenderedDate = null; // 🌟 ADICIONA ESTA LINHA AQUI para limpar o controlo de data nas DMs!
 
   socket.emit("switch_room", room);
 
@@ -222,59 +235,54 @@ function renderPrivateChats() {
   });
 }
 
-// SUBSTITUA APENAS O SEU EVENTO "KEYDOWN" POR ESTE (FUSÃO PERFEITA):
-document
-  .getElementById("message-input")
-  .addEventListener("keydown", async (e) => {
-    if (e.key === "Enter") {
-      const text = e.target.value.trim();
+// EVENTO DO ENTER NO CORAÇÃO DO SEU CLIENT.JS
+messageInput.addEventListener("keydown", async (e) => {
+  if (e.key === "Enter") {
+    const text = messageInput.value.trim();
 
-      // ALTERAÇÃO: Agora aceita enviar se houver texto OU se houver uma imagem no preview
-      if (!text && !selectedChatFile) return;
+    // 🌟 ALTERAÇÃO SEGUINTE: Bloqueia APENAS se não houver texto E não houver arquivo no preview
+    if (!text && !selectedChatFile) return;
 
-      let imageUrl = null;
+    let imageUrl = null;
 
-      // Se o utilizador escolheu uma foto, faz o upload em background primeiro
-      if (selectedChatFile) {
-        try {
-          const formData = new FormData();
-          formData.append("image", selectedChatFile);
+    if (selectedChatFile) {
+      try {
+        const formData = new FormData();
+        formData.append("image", selectedChatFile);
 
-          const res = await fetch("/upload", {
-            method: "POST",
-            body: formData,
-          });
+        const res = await fetch("/upload", {
+          method: "POST",
+          body: formData,
+        });
 
-          const uploadData = await res.json();
-          imageUrl = uploadData.url; // Guarda o link gerado pelo servidor
-        } catch (err) {
-          console.error("Erro ao fazer upload da imagem:", err);
-          alert(
-            "Houve uma falha ao processar a imagem. Tente enviar novamente.",
-          );
-          return;
-        }
+        const uploadData = await res.json();
+        imageUrl = uploadData.url;
+      } catch (err) {
+        console.error("Erro ao fazer upload da imagem:", err);
+        alert("Houve uma falha ao processar a imagem. Tente enviar novamente.");
+        return;
       }
-
-      // MANTÉM TODA A TUA ESTRUTURA ORIGINAL INTACTA + A PROPRIEDADE IMAGE_URL
-      socket.emit("chat message", {
-        room: currentRoom,
-        user: currentUser,
-        avatar: currentAvatar,
-        text: text || "", // Permite string vazia caso envie apenas a foto
-        image_url: imageUrl, // <-- Nova propriedade adicionada dinamicamente
-        reply_to_id: replyingTo ? replyingTo.id : null,
-        reply_user: replyingTo ? replyingTo.user : null,
-        reply_text: replyingTo ? replyingTo.text : null,
-      });
-
-      // Mantém as tuas limpezas originais e adiciona a limpeza do preview da foto
-      e.target.value = "";
-      replyingTo = null;
-      cancelReply(); // Fecha a barra cinza de citação do teu sistema
-      clearChatImagePreview(); // <-- Limpa a miniatura da foto para a próxima mensagem
     }
-  });
+
+    // Envia o payload completo para o servidor
+    socket.emit("chat message", {
+      room: currentRoom,
+      user: currentUser,
+      avatar: currentAvatar,
+      text: text || "", // Se não houver texto, envia uma string vazia ("") de forma segura
+      image_url: imageUrl,
+      reply_to_id: replyingTo ? replyingTo.id : null,
+      reply_user: replyingTo ? replyingTo.user : null,
+      reply_text: replyingTo ? replyingTo.text : null,
+    });
+
+    // Reseta o estado do input e do preview
+    messageInput.value = "";
+    replyingTo = null;
+    cancelReply();
+    clearChatImagePreview();
+  }
+});
 
 socket.on("ai_response", (data) => {
   addMessage({
@@ -285,14 +293,96 @@ socket.on("ai_response", (data) => {
 });
 
 socket.on("chat message", (data) => {
-  if (data.room !== currentRoom) {
-    unreadMessages[data.room] = (unreadMessages[data.room] || 0) + 1;
+  // Verifica se a mensagem foi enviada pelo próprio usuário logado
+  const isMe = data.user === currentUser;
 
-    updateNotifications();
-    replyToId: replyingTo;
+  if (data.room === currentRoom) {
+    // 🌟 SE A MENSAGEM É NA SALA ATUAL (Exibe na tela imediatamente)
+    insertDateDivider(data.timestamp || new Date(), false);
+    addMessage(data);
+
+    // PARTE 2: Se não fui eu que mandei, e eu estiver com a aba do navegador escondida 
+    // ou tiver subido o scroll (não estou no fundo), exibe a barra temporária no topo
+    if (!isMe && (document.hidden || !isUserAtBottom)) {
+      currentRoomNewMessages++;
+      showUnreadBanner();
+    }
+  } else {
+    // 🌟 SE A MENSAGEM VEIO DE OUTRA SALA / DM PRIVADA
+    if (!isMe) {
+      // Incrementa o contador de não lidas daquela sala específica
+      unreadMessages[data.room] = (unreadMessages[data.room] || 0) + 1;
+
+      // Mantém a tua função original de notificações ativa
+      if (typeof updateNotifications === "function") {
+        updateNotifications();
+      }
+
+      // PARTE 3: Cria ou atualiza a bolinha vermelha na barra lateral (limite 90+)
+      updateBadgeUI(data.room, unreadMessages[data.room]);
+
+      // PARTE 1: Envia a notificação nativa no sistema (Windows/Mac/Celular) se o chat estiver em segundo plano
+      if (window.Notification && Notification.permission === "granted") {
+        const title = data.room.includes("_pm_") ? `💬 DM de @${data.user}` : `📢 Canal #${data.room}`;
+        new Notification(title, {
+          body: data.text || "🖼️ Enviou uma imagem...",
+          icon: data.avatar || "/uploads/default-avatar.png",
+        });
+      }
+    }
+  }
+});
+
+// Ouvinte para abrir o modal de chamada recebida no cliente convidado
+socket.on("incoming-call", (data) => {
+  // Salva os dados da chamada recebida para usar ao aceitar ou recusar
+  incomingCallData = data;
+
+  const titleEl = document.getElementById("incoming-call-title");
+  const textEl = document.getElementById("incoming-call-text");
+  const modalEl = document.getElementById("incoming-call-modal");
+
+  // Atualiza dinamicamente o texto com base no tipo (vídeo/voz) e quem ligou
+  if (titleEl) {
+    titleEl.textContent = data.type === "video" ? "📹 Chamada de Vídeo..." : "🔊 Chamada de Voz...";
+  }
+  if (textEl) {
+    textEl.textContent = `@${data.caller} está te convidando para uma chamada de ${data.type === "video" ? "vídeo" : "voz"}.`;
   }
 
-  addMessage(data);
+  // Faz o modal embutido no HTML aparecer na tela
+  if (modalEl) {
+    modalEl.style.display = "flex";
+  }
+});
+
+// Adicione este ouvinte no seu client.js
+socket.on("load_history", (messages) => {
+  // Limpa o container de mensagens para garantir que não fiquem duplicadas
+  const messagesDiv = document.getElementById("messages");
+  messagesDiv.innerHTML = "";
+
+  // Reseta o divisor de data para o histórico recém-carregado
+  lastRenderedDate = null;
+
+  // Se houver mensagens no histórico, renderiza uma por uma
+  if (messages && messages.length > 0) {
+    messages.forEach((msg) => {
+      // Insere o divisor de data discreto para cada mensagem do histórico
+      if (typeof insertDateDivider === "function") {
+        insertDateDivider(msg.timestamp, false);
+      }
+
+      // Adiciona a mensagem visualmente na tela
+      if (typeof addMessage === "function") {
+        addMessage(msg);
+      }
+    });
+  }
+
+  // Joga o scroll do usuário para o final para ele ver as mensagens mais recentes
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  isUserAtBottom = true;
 });
 
 function createMessageElement(data) {
@@ -320,16 +410,15 @@ function createMessageElement(data) {
         ${data.text || ""}
       </span>
 
-      ${
-        data.image_url
-          ? `
+      ${data.image_url
+      ? `
             <img
               src="${data.image_url}"
               class="chat-img"
             >
           `
-          : ""
-      }
+      : ""
+    }
 
     </div>
   `;
@@ -391,9 +480,8 @@ function addMessage(data) {
                     ↩️
                 </button>
 
-                ${
-                  window.isAdmin || isMe
-                    ? `
+                ${window.isAdmin || isMe
+      ? `
                     <button
                         class="menu-btn"
                         onclick="toggleMessageMenu(event, ${data.id})">
@@ -409,38 +497,36 @@ function addMessage(data) {
                             🗑️ Apagar
                         </button>
 
-                        ${
-                          data.pinned
-                            ? `
+                        ${data.pinned
+        ? `
                             <button
                                 class="message-action danger pin-toggle-btn"
                                 onclick="unpinMessage(${data.id})">
                                 Desfixar
                             </button>
                           `
-                            : `
+        : `
                             <button
                                 class="message-action pin-toggle-btn"
                                 onclick="pinMessage(${data.id})">
                                 Fixar
                             </button>
                            `
-                        }
-                        ${
-                          isMe
-                            ? `
+      }
+                        ${isMe
+        ? `
                           <button
                               class="edit-btn"
                               onclick="editMessage(${data.id})">
                               Editar
                           </button>
                         `
-                            : ""
-                        }
+        : ""
+      }
                     </div>
                 `
-                    : ""
-                }
+      : ""
+    }
 
             </div>
 
@@ -448,9 +534,8 @@ function addMessage(data) {
 
         <span>${data.text || ""}</span>
 
-        ${
-          data.image_url ? `<img src="${data.image_url}" class="chat-img">` : ""
-        }
+        ${data.image_url ? `<img src="${data.image_url}" class="chat-img">` : ""
+    }
 
     </div>
   `;
@@ -465,17 +550,14 @@ function addMessage(data) {
   }
 }
 
-socket.on("load_history", (messages) => {
-  document.getElementById("messages").innerHTML = "";
 
-  messages.forEach(addMessage);
-});
 
 socket.on("refresh_users", () => {
   socket.emit("get_users");
 });
 
 socket.on("user_list", (users) => {
+  localOnlineUsersCache = users;
   const list = document.getElementById("user-list");
 
   list.innerHTML = "";
@@ -502,44 +584,41 @@ socket.on("user_list", (users) => {
 
     </div>
 
-    ${
-      window.isAdmin
+    ${window.isAdmin
         ? `
         <div class="admin-actions">
 
-            ${
-              user.isMuted
-                ? `
+            ${user.isMuted
+          ? `
                 <button
                     class="admin-btn btn-unmute"
                     onclick="event.stopPropagation(); unmuteUser('${user.username}')">
                     Unmute
                 </button>
             `
-                : `
+          : `
                 <button
                     class="admin-btn btn-mute"
                     onclick="event.stopPropagation(); muteUser('${user.username}')">
                     Mute
                 </button>
             `
-            }
-             ${
-               user.isBanned
-                 ? ""
-                 : `
+        }
+             ${user.isBanned
+          ? ""
+          : `
             <button
                 class="admin-btn btn-ban"
                 onclick="event.stopPropagation(); banUser('${user.username}')">
                 Ban
             </button>
             `
-             }
+        }
 
         </div>
     `
         : ""
-    }
+      }
 `;
 
     list.appendChild(div);
@@ -869,17 +948,16 @@ socket.on("message_pin_updated", (messageData) => {
 
           </div>
 
-          ${
-            window.isAdmin
-              ? `
+          ${window.isAdmin
+        ? `
               <button
                 class="unpin-top-btn"
                 onclick="unpinMessage(${messageData.id})">
                 Desfixar
               </button>
             `
-              : ""
-          }
+        : ""
+      }
 
       </div>
     `;
@@ -1094,3 +1172,729 @@ function clearChatImagePreview() {
     previewContainer.style.display = "none";
   }
 }
+
+// Função para inserir um divisor de data discreto no chat
+function insertDateDivider(timestamp, prepend = false) {
+  if (!timestamp) return;
+
+  // Formata a data da mensagem para o padrão DD/MM/AAAA
+  const msgDate = new Date(timestamp);
+  const formattedDate = msgDate.toLocaleDateString("pt-PT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+  // Se a data não mudou, não faz nada
+  if (!prepend && lastRenderedDate === formattedDate) return;
+
+  const divider = document.createElement("div");
+  divider.className = "chat-date-divider";
+  divider.setAttribute("data-date", formattedDate);
+  divider.innerHTML = `<span>${formattedDate}</span>`;
+
+  if (prepend) {
+    // Para mensagens antigas carregadas via scroll (se aplicares paginação no futuro)
+    messagesDiv.insertBefore(divider, messagesDiv.firstChild);
+  } else {
+    // Para o fluxo normal de mensagens novas ou carregamento inicial
+    messagesDiv.appendChild(divider);
+    lastRenderedDate = formattedDate;
+  }
+
+  // PARTE 2: Gerencia a barra flutuante temporária no topo do chat
+  function showUnreadBanner() {
+    if (currentRoomNewMessages <= 0) return;
+
+    let banner = document.getElementById("unread-messages-banner");
+    const chatArea = document.querySelector(".chat-area");
+
+    if (!banner && chatArea) {
+      banner = document.createElement("div");
+      banner.id = "unread-messages-banner";
+      banner.className = "unread-messages-banner";
+      // Insere logo no topo da área de chat, acima da lista de mensagens
+      chatArea.insertBefore(banner, messagesDiv);
+    }
+
+    banner.innerHTML = `<span>⬆️ Tens ${currentRoomNewMessages} novas mensagens não lidas</span>`;
+    banner.style.display = "flex";
+
+    // Função interna para sumir com a barra assim que houver atividade na tela
+    const removeBanner = () => {
+      banner.style.opacity = "0";
+      setTimeout(() => {
+        if (banner) banner.style.display = "none";
+        currentRoomNewMessages = 0;
+      }, 200);
+
+      // Remove os ouvintes para não sobrecarregar a memória
+      window.removeEventListener("click", removeBanner);
+      window.removeEventListener("mousemove", removeBanner);
+      window.removeEventListener("keydown", removeBanner);
+      messagesDiv.removeEventListener("scroll", removeBanner);
+    };
+
+    // Ativa os gatilhos para sumir a barra discretamente por movimento/clique
+    setTimeout(() => {
+      window.addEventListener("click", removeBanner);
+      window.addEventListener("mousemove", removeBanner);
+      window.addEventListener("keydown", removeBanner);
+      messagesDiv.addEventListener("scroll", removeBanner);
+    }, 100);
+  }
+
+  // PARTE 3: Atualiza dinamicamente as bolinhas de destaque (Badges) com limite de 90+
+  function updateBadgeUI(room, count) {
+    let elementSelector = "";
+
+    if (room.includes("_pm_")) {
+      // Descobre o nome do outro usuário na DM
+      const participants = room.split("_pm_");
+      const targetUser = participants[0] === currentUser ? participants[1] : participants[0];
+
+      // Procura na barra lateral o item do usuário correspondente
+      // Dica: Certifique-se de adicionar id ou data-username na criação da lista de DMs
+      elementSelector = `.private-chat-item[data-username="${targetUser}"], .user-item[data-username="${targetUser}"]`;
+    } else {
+      // Procura o canal/sala correspondente (ex: canal geral)
+      elementSelector = `.room-item[data-room="${room}"], #room-${room}`;
+    }
+
+    const container = document.querySelector(elementSelector);
+    if (!container) return;
+
+    // Garante que o elemento pai tenha posição relativa para o alinhamento da badge
+    container.style.position = "relative";
+
+    let badge = container.querySelector(".unread-badge");
+
+    if (count <= 0) {
+      if (badge) badge.remove();
+      return;
+    }
+
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "unread-badge";
+      container.appendChild(badge);
+    }
+
+    // Regra estrita: Se passar de 90 exibe "90+"
+    badge.textContent = count > 90 ? "90+" : count;
+  }
+
+  // Função para limpar as notificações ao entrar numa sala ou DM
+  function clearRoomNotifications(room) {
+    unreadMessages[room] = 0;
+    updateBadgeUI(room, 0);
+
+    // Limpa também o banner temporário se houver
+    const banner = document.getElementById("unread-messages-banner");
+    if (banner) banner.style.display = "none";
+    currentRoomNewMessages = 0;
+  }
+}
+
+// CONTROLES GLOBAIS DE MULTIMÍDIA WEBRTC
+let localStream = null;
+let screenStream = null;
+let peerConnections = {}; // Guarda conexões por usuário: { "username": RTCPeerConnection }
+let selectedInviteUsers = new Set();
+let currentCallRoom = null;
+let currentCallType = "audio";
+let pendingCallData = null;
+let audioAnalyserInterval = null;
+
+// Configuração padrão de servidores STUN públicos da Google (essenciais para WebRTC quebrar o firewall)
+const rtcConfig = {
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+};
+
+function openInviteModal(type) {
+  currentCallType = type;
+  selectedInviteUsers.clear();
+  document.getElementById("call-invite-modal").style.display = "flex";
+
+  renderInviteUsersList(localOnlineUsersCache);
+}
+
+// Função auxiliar para renderizar a lista (usada também pelo filtro de busca)
+function renderInviteUsersList(usersArray) {
+  const container = document.getElementById("invite-users-list");
+  if (!container) return;
+  container.innerHTML = "";
+
+  // Filtra para remover você mesmo e garantir que só apareçam usuários de fato online
+  const activeList = usersArray.filter(u => u.username !== currentUser && u.online);
+
+  if (activeList.length === 0) {
+    container.innerHTML = `<div style="padding:10px;color:#aaa;text-align:center;">Nenhum usuário online para convidar... 😢</div>`;
+    return;
+  }
+
+  activeList.forEach(user => {
+    const div = document.createElement("div");
+    div.className = "invite-user-item";
+    div.setAttribute("data-username", user.username);
+
+    // Altera o estado visual ao clicar na linha inteira para ficar mais confortável
+    div.onclick = (e) => {
+      // Evita o clique duplo caso clique diretamente no checkbox
+      if (e.target.tagName === "INPUT") return;
+      const cb = div.querySelector('input[type="checkbox"]');
+      cb.checked = !cb.checked;
+      toggleSelectUserCall(cb, user.username);
+    };
+
+    div.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px;">
+        <img src="${user.avatar || "/uploads/default-avatar.png"}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
+        <span>@${user.username}</span>
+      </div>
+      <input type="checkbox" value="${user.username}" onchange="toggleSelectUserCall(this, '${user.username}')">
+    `;
+    container.appendChild(div);
+  });
+}
+
+function closeInviteModal() {
+  document.getElementById("call-invite-modal").style.display = "none";
+}
+
+function toggleSelectUserCall(checkbox, username) {
+  if (checkbox.checked) {
+    selectedInviteUsers.add(username);
+    checkbox.parentElement.classList.add("selected");
+  } else {
+    selectedInviteUsers.delete(username);
+    checkbox.parentElement.classList.remove("selected");
+  }
+}
+
+// Inicia o disparo de convites via Socket
+function initiateCallFlow() {
+  if (selectedInviteUsers.size === 0) {
+    alert("Selecione pelo menos 1 usuário para chamar!");
+    return;
+  }
+
+  currentCallRoom = currentRoom; // Vincula a chamada ao canal de texto atual
+  const targets = Array.from(selectedInviteUsers);
+
+  // Avisa o servidor
+  socket.emit("call-invite-payload", {
+    targets: targets,
+    room: currentCallRoom,
+    caller: currentUser,
+    callType: currentCallType
+  });
+
+  closeInviteModal();
+  startLocalMediaAndShowUI();
+}
+
+// Configura Câmera e Microfone Local
+async function startLocalMediaAndShowUI() {
+  document.getElementById("active-call-overlay").style.display = "flex";
+
+  try {
+    // Captura áudio e vídeo dependendo do tipo selecionado
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: currentCallType === "video"
+    });
+
+    // Renderiza o próprio card na tela
+    createParticipantCard(currentUser, localStream, true);
+    setupAudioSpeakingDetector(localStream, currentUser);
+
+  } catch (err) {
+    console.error("Erro ao obter mídias locais:", err);
+    alert("Não foi possível acessar sua câmera ou microfone.");
+    hangUpCall();
+  }
+}
+
+// Escuta Convites de Chamadas Recebidas
+// Ouvir quando o servidor repassar uma chamada recebida para você
+socket.on("incoming-call-broadcast", (data) => {
+  console.log("[CLIENT] Recebeu convite de chamada!", data);
+
+  incomingCallData = {
+    caller: data.caller,
+    room: data.room,
+    type: data.callType,
+    targets: data.allTargets
+  };
+
+  const callTextElem = document.getElementById("incoming-call-text");
+  if (callTextElem) {
+    callTextElem.textContent = `${data.caller} está convidando você para uma chamada de ${data.callType === 'video' ? 'Vídeo' : 'Áudio'}.`;
+  }
+
+  const modal = document.getElementById("incoming-call-modal");
+  if (modal) {
+    modal.style.display = "flex"; // Abre o modal na tela do convidado
+  }
+});
+
+function declineIncomingCall() {
+  document.getElementById("call-incoming-modal").style.display = "none";
+  if (!pendingCallData) return;
+
+  socket.emit("call-response-signal", {
+    caller: pendingCallData.caller,
+    responder: currentUser,
+    accepted: false,
+    room: pendingCallData.room
+  });
+  pendingCallData = null;
+}
+
+async function acceptIncomingCall() {
+  document.getElementById("call-incoming-modal").style.display = "none";
+  if (!pendingCallData) return;
+
+  currentCallRoom = pendingCallData.room;
+  currentCallType = pendingCallData.callType;
+
+  socket.emit("call-response-signal", {
+    caller: pendingCallData.caller,
+    responder: currentUser,
+    accepted: true,
+    room: pendingCallData.room
+  });
+
+  await startLocalMediaAndShowUI();
+
+  // Estabelece canal WebRTC inicial com quem ligou
+  setupPeerConnection(pendingCallData.caller, true);
+  pendingCallData = null;
+}
+
+// O Criador da chamada monitora quem aceitou para disparar a oferta WebRTC
+socket.on("call-response-received", (data) => {
+  if (!data.accepted) {
+    console.log(`@${data.responder} recusou a chamada.`);
+    return;
+  }
+  // Cria canal de transmissão direta para este utilizador específico
+  setupPeerConnection(data.responder, false);
+});
+
+// Configuração do Pipeline WebRTC para cada usuário conectado
+function setupPeerConnection(targetUser, isIncoming) {
+  if (peerConnections[targetUser]) return;
+
+  const pc = new RTCPeerConnection(rtcConfig);
+  peerConnections[targetUser] = pc;
+
+  // Injeta os tracks de áudio/vídeo locais na conexão deste peer
+  localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+  // Evento disparado quando o outro lado enviar o sinal de vídeo/áudio dele
+  pc.ontrack = (event) => {
+    createParticipantCard(targetUser, event.streams[0], false);
+    setupAudioSpeakingDetector(event.streams[0], targetUser);
+  };
+
+  // Evento disparado para rotear caminhos alternativos de rede de internet
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit("webrtc-signaling-mesh", {
+        to: targetUser,
+        from: currentUser,
+        signal: { candidate: event.candidate }
+      });
+    }
+  };
+
+  // Criação automática do Handshake (SDP)
+  if (!isIncoming) {
+    pc.createOffer()
+      .then(offer => pc.setLocalDescription(offer))
+      .then(() => {
+        socket.emit("webrtc-signaling-mesh", {
+          to: targetUser,
+          from: currentUser,
+          signal: { sdp: pc.localDescription }
+        });
+      });
+  }
+}
+
+// Gerencia a troca de pacotes de sinalização WebRTC Mesh
+socket.on("webrtc-signaling-mesh", async (data) => {
+  let pc = peerConnections[data.from];
+
+  if (!pc) {
+    setupPeerConnection(data.from, true);
+    pc = peerConnections[data.from];
+  }
+
+  if (data.signal.sdp) {
+    await pc.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
+    if (pc.remoteDescription.type === "offer") {
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit("webrtc-signaling-mesh", {
+        to: data.from,
+        from: currentUser,
+        signal: { sdp: pc.localDescription }
+      });
+    }
+  } else if (data.signal.candidate) {
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
+    } catch (e) {
+      console.error("Falha ao adicionar ICE Candidate", e);
+    }
+  }
+});
+
+// Criação dinâmica da interface do usuário no Grid (Cards de vídeo e avatar)
+function createParticipantCard(username, stream, isMe) {
+  let card = document.getElementById(`p-card-${username}`);
+  const grid = document.getElementById("call-participants-grid");
+
+  if (!card) {
+    card = document.createElement("div");
+    card.id = `p-card-${username}`;
+    card.className = "participant-card";
+
+    // Injeta a estrutura HTML padrão
+    card.innerHTML = `
+      <img class="participant-avatar-view" id="p-avatar-${username}" src="/uploads/default-avatar.png" style="display:none;">
+      <video id="p-video-${username}" autoplay playsinline ${isMe ? "muted" : ""}></video>
+      <div class="participant-name">${username} ${isMe ? "(Você)" : ""}</div>
+    `;
+    grid.appendChild(card);
+
+    // Se não for você, tenta buscar o avatar correto na barra lateral
+    if (!isMe) {
+      const userItem = document.querySelector(`.user-item[data-username="${username}"] img, .private-chat-item[data-username="${username}"] img`);
+      if (userItem) {
+        document.getElementById(`p-avatar-${username}`).src = userItem.src;
+      }
+    } else if (currentAvatar) {
+      document.getElementById(`p-avatar-${username}`).src = currentAvatar;
+    }
+  }
+
+  const videoElement = document.getElementById(`p-video-${username}`);
+
+  if (videoElement.srcObject !== stream) {
+    videoElement.srcObject = stream;
+  }
+
+  // Executa a verificação inicial de mídia
+  updateCardMediaState(card, stream, videoElement, username);
+
+  // Monitora mutações nas faixas de vídeo (caso o usuário ligue/desligue a câmera no meio da chamada)
+  stream.onaddtrack = () => updateCardMediaState(card, stream, videoElement, username);
+  stream.onremovetrack = () => updateCardMediaState(card, stream, videoElement, username);
+
+  // Cria um intervalo temporário curto para garantir o re-calculo após o handshake do WebRTC
+  setTimeout(() => {
+    updateCardMediaState(card, stream, videoElement, username);
+  }, 800);
+}
+
+// Função auxiliar essencial para alternar as classes CSS baseadas no estado real do Stream
+function updateCardMediaState(card, stream, videoElement, username) {
+  if (!stream || !card) return;
+
+  const videoTracks = stream.getVideoTracks();
+  // Está no modo de vídeo se houver faixa de vídeo e ela estiver habilitada
+  const hasVideoActive = videoTracks.length > 0 && videoTracks[0].enabled;
+  const avatarElement = document.getElementById(`p-avatar-${username}`);
+
+  if (hasVideoActive) {
+    // 🎥 Modo Vídeo Ativo
+    card.classList.remove("audio-mode");
+    videoElement.style.display = "block";
+    if (avatarElement) avatarElement.style.display = "none";
+  } else {
+    // 🔊 Modo Apenas Voz Ativo
+    card.classList.add("audio-mode");
+    videoElement.style.display = "none";
+    if (avatarElement) avatarElement.style.display = "block";
+  }
+}
+
+// 🔊 🌟 ANALISADOR DE ÁUDIO DE ALTA VELOCIDADE (Efeito de Brilho de Fala Verde)
+function setupAudioSpeakingDetector(stream, username) {
+  if (stream.getAudioTracks().length === 0) return;
+
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const source = audioCtx.createMediaStreamSource(stream);
+  const analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 512;
+  source.connect(analyser);
+
+  const bufferLength = analyser.frequencyBinCount;
+  const dataArray = new Uint8Array(bufferLength);
+
+  const checkVolume = () => {
+    const card = document.getElementById(`p-card-${username}`);
+    if (!card) return; // Se o usuário saiu, encerra loop
+
+    analyser.getByteFrequencyData(dataArray);
+    let total = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      total += dataArray[i];
+    }
+    const averageVolume = total / bufferLength;
+
+    // Threshold de volume: Se a média de captação for maior que 12, considera-se falando
+    if (averageVolume > 12) {
+      card.classList.add("speaking");
+    } else {
+      card.classList.remove("speaking");
+    }
+
+    // Mantém o ciclo vivo se a chamada estiver de pé
+    if (localStream) requestAnimationFrame(checkVolume);
+  };
+
+  checkVolume();
+}
+
+// CONTROLES DE MUTAÇÃO (MICROFONE, CAMERA E SCREEN SHARE)
+function toggleMicrophone() {
+  const audioTrack = localStream.getAudioTracks()[0];
+  if (audioTrack) {
+    audioTrack.enabled = !audioTrack.enabled;
+    document.getElementById("btn-toggle-mic").classList.toggle("off", !audioTrack.enabled);
+    document.getElementById("btn-toggle-mic").textContent = audioTrack.enabled ? "🎙️" : "🔇";
+  }
+}
+
+function toggleCamera() {
+  const videoTrack = localStream.getVideoTracks()[0];
+  if (videoTrack) {
+    videoTrack.enabled = !videoTrack.enabled;
+    document.getElementById("btn-toggle-cam").classList.toggle("off", !videoTrack.enabled);
+    document.getElementById("btn-toggle-cam").textContent = videoTrack.enabled ? "📹" : "🚫";
+
+    // Alterna visualização do card local
+    document.getElementById(`p-video-${currentUser}`).style.display = videoTrack.enabled ? "block" : "none";
+    document.getElementById(`p-avatar-${currentUser}`).style.display = videoTrack.enabled ? "none" : "block";
+  }
+}
+
+// 🖥️ TRANSMISSÃO DE TELA FORA DO NAVEGADOR (NATIVO DO SISTEMA OPERACIONAL)
+async function toggleScreenShare() {
+  const screenBtn = document.getElementById("btn-share-screen");
+
+  if (!screenStream) {
+    try {
+      // Captura de tela nativa (abre pop-up nativo do Windows/Mac para escolher janela, tela inteira ou som)
+      screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true // Captura o áudio do sistema caso o usuário marque a caixinha
+      });
+
+      const videoTrack = screenStream.getVideoTracks()[0];
+
+      // Substitui o track de vídeo em todas as conexões ativas P2P
+      Object.values(peerConnections).forEach(pc => {
+        const sender = pc.getSenders().find(s => s.track.kind === "video");
+        if (sender) sender.replaceTrack(videoTrack);
+      });
+
+      createParticipantCard(currentUser, screenStream, true);
+      screenBtn.textContent = "🛑 Parar Transmissão";
+      screenBtn.classList.add("off");
+
+      // Deteta se o utilizador clicou no botão nativo "Parar partilha" flutuante do SO
+      videoTrack.onended = () => toggleScreenShare();
+
+    } catch (err) {
+      console.error("Falha ao compartilhar tela:", err);
+    }
+  } else {
+    // Para a transmissão e retorna para a câmera padrão
+    screenStream.getTracks().forEach(track => track.stop());
+    screenStream = null;
+
+    const cameraTrack = localStream.getVideoTracks()[0];
+    Object.values(peerConnections).forEach(pc => {
+      const sender = pc.getSenders().find(s => s.track.kind === "video");
+      if (sender && cameraTrack) sender.replaceTrack(cameraTrack);
+    });
+
+    createParticipantCard(currentUser, localStream, true);
+    screenBtn.textContent = "🖥️ Transmitir Tela";
+    screenBtn.classList.remove("off");
+  }
+}
+
+// Finaliza ou Abandona a chamada
+function hangUpCall() {
+  if (currentCallRoom) {
+    socket.emit("leave-call-room", { room: currentCallRoom, user: currentUser });
+  }
+
+  // Limpa streams de hardware
+  if (localStream) localStream.getTracks().forEach(track => track.stop());
+  if (screenStream) screenStream.getTracks().forEach(track => track.stop());
+
+  // Fecha conexões com todos os peers
+  Object.values(peerConnections).forEach(pc => pc.close());
+
+  // Reseta estados
+  localStream = null;
+  screenStream = null;
+  peerConnections = {};
+  currentCallRoom = null;
+
+  // Limpa layout
+  document.getElementById("call-participants-grid").innerHTML = "";
+  document.getElementById("active-call-overlay").style.display = "none";
+
+  // Reseta estilo dos botões controladores
+  document.getElementById("btn-toggle-mic").classList.remove("off");
+  document.getElementById("btn-toggle-cam").classList.remove("off");
+  document.getElementById("btn-share-screen").classList.remove("off");
+  document.getElementById("btn-share-screen").textContent = "🖥️ Transmitir Tela";
+}
+
+// Remove o card de um usuário se ele desligar/sair da chamada
+socket.on("user-left-call", (data) => {
+  const card = document.getElementById(`p-card-${data.user}`);
+  if (card) card.remove();
+
+  if (peerConnections[data.user]) {
+    peerConnections[data.user].close();
+    delete peerConnections[data.user];
+  }
+});
+
+function filterInviteUsers() {
+  const query = document.getElementById("search-call-users").value.toLowerCase().trim();
+
+  // Se não houver busca, mostra todos os usuários online salvos no cache
+  if (!query) {
+    renderInviteUsersList(localOnlineUsersCache);
+    return;
+  }
+
+  // Filtra a lista baseado no que foi digitado
+  const filtered = localOnlineUsersCache.filter(user =>
+    user.username.toLowerCase().includes(query)
+  );
+
+  renderInviteUsersList(filtered);
+}
+
+// Função acionada ao clicar em "Atender" ✅
+async function acceptIncomingCall() {
+  if (!incomingCallData) return;
+
+  // 1. Emite o sinal de aceite de volta para o servidor conectar a malha Mesh WebRTC
+  socket.emit("call-response-signal", {
+    caller: incomingCallData.caller,
+    responder: currentUser,
+    accepted: true,
+    room: incomingCallData.room,
+    type: incomingCallData.type
+  });
+
+  // 2. Oculta o modal de convite da tela
+  document.getElementById("incoming-call-modal").style.display = "none";
+
+  // 3. Sincroniza o estado da chamada localmente
+  currentCallRoom = incomingCallData.room;
+  currentCallType = incomingCallData.type;
+
+  // 4. Ativa o fluxo de captura de áudio/vídeo e entra na sala da chamada
+  // (Usa a função padrão do seu sistema para abrir a webcam/microfone)
+  if (typeof startCallStream === "function") {
+    startCallStream(incomingCallData.room, incomingCallData.type);
+  }
+
+  // Limpa o cache do convite atendido
+  incomingCallData = null;
+}
+
+// Função acionada ao clicar em "Recusar" ❌
+function declineIncomingCall() {
+  if (!incomingCallData) return;
+
+  // 1. Avisa o servidor que a chamada foi rejeitada
+  socket.emit("call-response-signal", {
+    caller: incomingCallData.caller,
+    responder: currentUser,
+    accepted: false,
+    room: incomingCallData.room
+  });
+
+  // 2. Esconde o modal da tela
+  document.getElementById("incoming-call-modal").style.display = "none";
+
+  // Limpa o cache
+  incomingCallData = null;
+}
+
+function sendCallInvite() {
+  console.log("[CLIENT - EMISSOR] Botão de iniciar chamada foi clicado.");
+
+  if (selectedInviteUsers.size === 0) {
+    alert("Por favor, selecione ao menos um usuário!");
+    return;
+  }
+
+  const callRoomId = `call_${Date.now()}_${currentUser}`;
+  currentCallRoom = callRoomId;
+
+  const payload = {
+    caller: currentUser,
+    targets: Array.from(selectedInviteUsers),
+    room: callRoomId,
+    callType: "video"
+  };
+
+  console.log("[CLIENT - EMISSOR] Enviando o seguinte payload ao servidor:", payload);
+  socket.emit("call-invite-payload", payload);
+}
+
+// Ouvir o convite de chamada recebido do servidor
+// Ouve o sinal do servidor para abrir a janela de chamada recebida
+// Ouvir o convite de chamada recebido do servidor
+socket.on("incoming-call", (data) => {
+  console.log("===> [SOCKET] EVENTO INCOMING-CALL RECEBIDO!", data);
+
+  // Guarda os dados na variável global
+  incomingCallData = data;
+
+  // Atualiza os textos internos
+  const callTitleElem = document.getElementById("incoming-call-title");
+  const callTextElem = document.getElementById("incoming-call-text");
+
+  if (callTitleElem) callTitleElem.textContent = "Chamada a Receber...";
+  if (callTextElem) {
+    callTextElem.textContent = `${data.caller} está a convidar-te para uma chamada.`;
+  }
+
+  // Torna o modal visível alterando a propriedade diretamente
+  const modal = document.getElementById("incoming-call-modal");
+  if (modal) {
+    modal.style.setProperty("display", "flex", "important");
+    console.log("[JS CLIENT] Sucesso: Forçou 'display: flex' no modal.");
+  } else {
+    console.error("[JS CLIENT] Erro: Não encontrou o elemento 'incoming-call-modal' no HTML.");
+  }
+});
+
+socket.on("call-error-fallback", (data) => {
+  console.log("[CLIENT] Falha ao completar chamada:", data.message);
+  alert(data.message);
+
+  // Se você tiver um overlay de "Ligando...", esconda-o aqui
+  const activeCallOverlay = document.getElementById("active-call-overlay");
+  if (activeCallOverlay) {
+    activeCallOverlay.style.display = "none";
+  }
+});
